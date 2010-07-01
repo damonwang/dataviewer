@@ -63,13 +63,18 @@ class MainFrame(Frame):
         self.datasheets = []
 
         self.panel = wx.Panel(self)
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.panel.SetSizer(self.sizer)
-        self.nb = aui.AuiNotebook(parent=self.panel, 
-                style=wx.aui.AUI_NB_DEFAULT_STYLE | 
-                    wx.aui.AUI_NB_TAB_EXTERNAL_MOVE | 
-                    wx.aui.AUI_NB_MIDDLE_CLICK_CLOSE)
-        self.sizer.AddF(item=self.nb, flags=wx.SizerFlags(1).Expand())
+
+        self.splitter = wx.SplitterWindow(parent=self.panel,
+                style=wx.SP_BORDER)
+        self.sizer.AddF(item=self.splitter, 
+                flags=wx.SizerFlags(1).Expand())
+
+        self.tree = wx.TreeCtrl(parent=self.splitter, 
+                style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
+        self.tree.AddRoot(text="root")
+        self.splitter.Initialize(self.tree)
 
         self.statusbar = self.CreateStatusBar()
         self.statusbar.SetStatusText("statusbar", 0)
@@ -94,19 +99,32 @@ class MainFrame(Frame):
             style=wx.OPEN | wx.CHANGE_DIR | wx.MULTIPLE
             )
 
+        ds = None
         if dlg.ShowModal() == wx.ID_OK:
             for path in dlg.GetPaths():
-                try:
-                    ds = DataSheet(parent=self, filename=path, 
-                            writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
-                            writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
-                    self.datasheets.append(ds)
-                    self.nb.AddPage(ds, caption=path, select=True)
-                    self.panel.Layout()
-                except IOError as e:
+                if not os.path.isfile(path):
                     wx.MessageBox(caption="File not found", 
                             message="file %s not found, not opened." % e.filename)
+                    continue
+                item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
+                        text=os.path.basename(path))
+                ds = DataSheet(parent=self.splitter, filename=path, treeItem=item,
+                        writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
+                        writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
+                self.datasheets.append(ds)
+                self.tree.SetItemPyData(item=item, obj=ds)
+                self.sizer.AddF(item=ds, flags=wx.SizerFlags(5).Expand())
         dlg.Destroy()
+
+        if ds is not None:
+            if self.splitter.IsSplit():
+                self.splitter.ReplaceWindow(winOld=self.splitter.GetWindow2(),
+                    winNew=ds)
+            else: 
+                self.splitter.SplitVertically(window2=ds,
+                       window1=self.splitter.GetWindow1())
+
+        self.panel.Layout()
 #------------------------------------------------------------------------------
 
 class VarSelPanel(wx.Panel):
@@ -164,11 +182,12 @@ class DataSheet(wx.Panel):
         parent: parent window
         writeOut: function that writes normal output to the right place
         writeErr: same for errors
+        treeItem: its entry in the TreeCtrl nav bar
         sizer
         no panel because it IS a panel!
     '''
 
-    def __init__(self, parent, filename=None, 
+    def __init__(self, parent, filename=None, treeItem=None,
             writeOut=lambda s: self._def_writeOut,
             writeErr=lambda s: self._def_writeErr):
         '''Reads in the file and displays it.
@@ -188,6 +207,7 @@ class DataSheet(wx.Panel):
         wx.Panel.__init__(self, parent=parent)
 
         self.filename, self.parent, self.plot = filename, parent, None
+        self.treeItem = treeItem
         self.writeOut, self.writeErr = writeOut, writeErr
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
