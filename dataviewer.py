@@ -3,6 +3,7 @@
 '''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010
 
 
+15:00 01 Jul 2010: refactored controls into function to pull all selections into hash
 10:00 01 Jul 2010: plotting works
 15:00 24 Jun 2010: added VarSelCtrl to choose x, y variables
 11:25 24 Jun 2010: refactored data display into DataSheet object (subclass of Panel)
@@ -186,9 +187,7 @@ class DataSheet(wx.Panel):
 
         wx.Panel.__init__(self, parent=parent)
 
-        self.filename = filename
-        self.parent = parent
-
+        self.filename, self.parent, self.plot = filename, parent, None
         self.writeOut, self.writeErr = writeOut, writeErr
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -208,32 +207,62 @@ class DataSheet(wx.Panel):
                     flags=wx.SizerFlags().Border())
 
         self.plotbtn = wx.Button(self, label="Plot")
+        self.plotbtn.Bind(event=wx.EVT_BUTTON, handler=self.onPlot)
         self.ctrlsizer.AddF(item=self.plotbtn, 
                 flags=wx.SizerFlags().Right().Border())
-        self.Bind(event=wx.EVT_BUTTON, handler=self.plot, source=self.plotbtn)
+
+        self.oplotbtn = wx.Button(self, label="Overplot")
+        self.oplotbtn.Bind(event=wx.EVT_BUTTON, handler=self.onOverPlot)
+        self.ctrlsizer.AddF(item=self.oplotbtn, 
+                flags=wx.SizerFlags().Right().Border())
+
 
         self.Layout()
+    
+    def onEvent(self, event):
+        '''just pops up a MesssageBox announcing the event'''
 
-    def plot(self, event):
+    def _getCtrls(self):
+        '''collects the values of all controls
+
+        Returns: a dictionary of values indexed by control name'''
+
+        def iter():
+            for ctrl in self.ctrls:
+                try:
+                    yield (ctrl.var, ctrl.selection)
+                except AttributeError:
+                    pass
+
+        return dict([ i for i in iter() ])
+
+    def onOverPlot(self, event):
+        '''adds a trace to the existing plot'''
+
+        pass
+
+    def onPlot(self, event):
         '''Reads ctrls and plots'''
 
-        srcs = [0] * len(axes)
-        data = [0] * len(axes)
-
-        for i in range(len(axes)):
-            try:
-                srcs[i] = self.ctrls[i].selection
-            except AttributeError:
-                wx.MessageBox("Please choose your %s axis" % axes[i])
+        ctrls = self._getCtrls()
+        data = {}
+        for axis in axes:
+            if axis not in ctrls:
+                wx.MessageBox("Please choose your %s axis" % axis)
                 return None
-            data[i] = self.data.get_data(name=axes[i])
+            data[axis] = self.data.get_data(name=ctrls[axis])
+        self.writeOut("plotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
 
-        self.plot = MPlot.PlotPanel(parent=self)
-        self.plot.plot(data[0], data[1])
-
-        self.writeOut("plotting %s" % ", ".join(srcs))
+        newplot = MPlot.PlotPanel(parent=self)
+        newplot.plot(xdata=data["X"], ydata=data["Y"])
+        if self.plot is not None and self.sizer.Detach(self.plot):
+            print("destroying old plot", file=sys.stderr)
+            self.plot.Destroy()
+        self.plot = newplot
 
         self.sizer.AddF(item=self.plot, flags=wx.SizerFlags(1).Expand().Center())
+        if self.plotbtn.GetLabel() != "Replot":
+            self.plotbtn.SetLabel("Replot")
         self.Layout()
 
     def _def_writeOut(self, s):
