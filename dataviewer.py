@@ -239,7 +239,19 @@ class DataSheet(wx.Panel):
     def onOverPlot(self, event):
         '''adds a trace to the existing plot'''
 
-        pass
+        ctrls = self._getCtrls()
+        data = {}
+        for axis in axes:
+            if axis not in ctrls:
+                wx.MessageBox("Please choose your %s axis" % axis)
+                return None
+            data[axis] = self.data.get_data(name=ctrls[axis])
+        self.writeOut("overplotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
+
+        self.plot.oplot(xdata=data["X"], ydata=data["Y"])
+
+        self.Layout()
+        
 
     def onPlot(self, event):
         '''Reads ctrls and plots'''
