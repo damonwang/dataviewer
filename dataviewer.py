@@ -3,6 +3,7 @@
 '''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010
 
 
+10:00 01 Jul 2010: plotting works
 15:00 24 Jun 2010: added VarSelCtrl to choose x, y variables
 11:25 24 Jun 2010: refactored data display into DataSheet object (subclass of Panel)
 10:12 24 Jun 2010: opens multiple files from each Open command, in AuiNotebook
@@ -12,11 +13,15 @@
 # IMPORTS
 
 from __future__ import with_statement
+from __future__ import print_function
+
 import wx
 from wx import stc
 from wx import aui
+
 import os
 import sys
+
 import escan_data as ED
 import MPlot
 
@@ -91,7 +96,9 @@ class MainFrame(Frame):
         if dlg.ShowModal() == wx.ID_OK:
             for path in dlg.GetPaths():
                 try:
-                    ds = DataSheet(parent=self, filename=path)
+                    ds = DataSheet(parent=self, filename=path, 
+                            writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
+                            writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
                     self.datasheets.append(ds)
                     self.nb.AddPage(ds, caption=path, select=True)
                     self.panel.Layout()
@@ -113,11 +120,13 @@ class VarSelPanel(wx.Panel):
         sizer
     '''
 
-    def __init__(self, parent, var, options=[], label=None):
+    def __init__(self, parent, var, options=[], defchoice=None, label=None):
         wx.Panel.__init__(self, parent=parent)
 
         self.var = var
         self.options = options
+        if defchoice is not None:
+            self.selection = defchoice
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.SetSizer(self.sizer)
@@ -127,15 +136,15 @@ class VarSelPanel(wx.Panel):
         self.label = wx.StaticText(parent=self, label=label)
         self.sizer.AddF(item=self.label, flags=wx.SizerFlags().Center().Border())
 
-        self.dropdown = wx.Choice(parent=self, id=wx.NewId(), 
-                choices=self.options)
-        self.Bind(event=wx.EVT_CHOICE, handler=self.OnEvtChoice, 
+        self.dropdown = wx.ComboBox(parent=self, value=defchoice,
+                style=wx.CB_READONLY, choices=self.options)
+        self.Bind(event=wx.EVT_COMBOBOX, handler=self.OnEvtComboBox, 
                 source=self.dropdown)
         self.sizer.AddF(item=self.dropdown, flags=wx.SizerFlags(1).Center())
 
-        self.Layout()
+        self.Refresh()
 
-    def OnEvtChoice(self, event):
+    def OnEvtComboBox(self, event):
         '''sets attribute selection when user makes a choice'''
 
         self.selection = event.GetString()
@@ -152,16 +161,22 @@ class DataSheet(wx.Panel):
         plotbtn: button to make a plot
         plot: Mplot window with plot
         parent: parent window
+        writeOut: function that writes normal output to the right place
+        writeErr: same for errors
         sizer
         no panel because it IS a panel!
     '''
 
-    def __init__(self, parent, filename=None):
+    def __init__(self, parent, filename=None, 
+            writeOut=lambda s: self._def_writeOut,
+            writeErr=lambda s: self._def_writeErr):
         '''Reads in the file and displays it.
         
         Args:
             parent: parent window
             filename: name of data file
+            writeOut: function that writes normal output to the right place
+            writeErr: same for errors
             
         Throws:
             IOError(errno=2) if file not found'''
@@ -174,6 +189,8 @@ class DataSheet(wx.Panel):
         self.filename = filename
         self.parent = parent
 
+        self.writeOut, self.writeErr = writeOut, writeErr
+
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
@@ -185,11 +202,14 @@ class DataSheet(wx.Panel):
         self.ctrls = []
         for var in axes:
             self.ctrls.append(VarSelPanel(parent=self, var=var, 
-                options=self.data.sums_names))
-            self.ctrlsizer.AddF(item=self.ctrls[-1], flags=wx.SizerFlags().Border())
+                options=self.data.sums_names, 
+                defchoice=self.data.sums_names[0]))
+            self.ctrlsizer.AddF(item=self.ctrls[-1], 
+                    flags=wx.SizerFlags().Border())
 
         self.plotbtn = wx.Button(self, label="Plot")
-        self.ctrlsizer.AddF(item=self.plotbtn, flags=wx.SizerFlags().Right().Border())
+        self.ctrlsizer.AddF(item=self.plotbtn, 
+                flags=wx.SizerFlags().Right().Border())
         self.Bind(event=wx.EVT_BUTTON, handler=self.plot, source=self.plotbtn)
 
         self.Layout()
@@ -208,13 +228,23 @@ class DataSheet(wx.Panel):
                 return None
             data[i] = self.data.get_data(name=axes[i])
 
-
-        self.plot = MPlot.PlotFrame(parent=self)
-        self.sizer.AddF(item=self.plot, flags=wx.SizerFlags(1).Expand().Center())
-
+        self.plot = MPlot.PlotPanel(parent=self)
         self.plot.plot(data[0], data[1])
 
+        self.writeOut("plotting %s" % ", ".join(srcs))
+
+        self.sizer.AddF(item=self.plot, flags=wx.SizerFlags(1).Expand().Center())
         self.Layout()
+
+    def _def_writeOut(self, s):
+        '''default output goes to sys.stdout'''
+
+        print(s)
+
+    def _def_writeErr(self, s):
+        '''default error goes to sys.stderr'''
+
+        print(s, file=sys.stderr)
 
 #------------------------------------------------------------------------------
 
