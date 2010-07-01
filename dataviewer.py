@@ -2,8 +2,9 @@
 
 '''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010
 
-17:00 22 Jun 2010: File menu with Open command, opens one file in a StyledTextCtrl
-10:12 24 Jun 2010: opens multiple files from each Open command, in AuiNotebook'''
+11:25 24 Jun 2010: refactored data display into DataSheet object (subclass of Panel)
+10:12 24 Jun 2010: opens multiple files from each Open command, in AuiNotebook
+17:00 22 Jun 2010: File menu with Open command, opens one file in a StyledTextCtrl'''
 
 from __future__ import with_statement
 import wx
@@ -12,10 +13,14 @@ from wx import aui
 import os
 import sys
 
+#------------------------------------------------------------------------------
+
 class Frame(wx.Frame):
     '''straight inherited from wx.Frame, but created in case I need to
     customize it later.'''
     pass
+
+#------------------------------------------------------------------------------
 
 class MainFrame(Frame):
     '''The main viewer frame.
@@ -24,6 +29,7 @@ class MainFrame(Frame):
         panel: main panel
         sizer: sizer for panel, holding nb
         nb: holds one data file per page
+        datasheets: holds open DataSheets
         statusbar
         menubar
     
@@ -34,6 +40,8 @@ class MainFrame(Frame):
         statusbar, menubar, and a single full-size panel.'''
 
         Frame.__init__(self, *args, **kwargs)
+
+        self.datasheets = []
 
         self.panel = wx.Panel(self)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
@@ -65,32 +73,58 @@ class MainFrame(Frame):
             )
 
         if dlg.ShowModal() == wx.ID_OK:
-             self.openDataFile(dlg.GetPaths())
+            for path in dlg.GetPaths():
+                try:
+                    ds = DataSheet(parent=self, filename=path)
+                    self.datasheets.append(ds)
+                    self.nb.AddPage(ds, caption=path, select=True)
+                    self.panel.Layout()
+                except IOError as e:
+                    wx.MessageBox(caption="File not found", 
+                            message="file %s not found, not opened." % e.filename)
         dlg.Destroy()
+#------------------------------------------------------------------------------
 
+class DataSheet(wx.Panel):
+    '''Holds one data set
 
-    def openDataFile(self, paths):
-        '''Displays a data file.
+    Attributes:
+        filename: name of file data came from
+        editwindow: StyledTextCtrl for editing data 
+        sizer
+        no panel because it IS a panel!
+    '''
 
+    def __init__(self, parent, filename=None):
+        '''Reads in the file and displays it.
+        
         Args:
+            parent: parent window
+            filename: name of data file
+            
+        Throws:
+            IOError(errno=2) if file not found'''
 
-            paths = list of filename strings
+        if not os.path.isfile(filename):
+            raise IOError(2, "no such file", filename)
 
-        Returns:
-            None'''
+        wx.Panel.__init__(self, parent=parent)
 
-        if not os.path.isfile(paths[0]):
-            print >> sys.stderr, "file doesn't exist!"
-            return None
-        for path in paths:
-            with open(path, "r") as inf:
-                data = inf.read()
-                print >> sys.stderr, "opened %s and read %s" % (path, data[:80])
+        self.filename = filename
 
-                self.editwindow = stc.StyledTextCtrl(self.panel, -1)
-                self.editwindow.SetText(data)
-                self.nb.AddPage(self.editwindow, caption=paths[0], select=True)
-                self.panel.Layout()
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(self.sizer)
+
+        with open(filename, "r") as inf:
+            data = inf.read()
+            print >> sys.stderr, "opened %s and read %s" % (filename, data[:80])
+
+            self.editwindow = stc.StyledTextCtrl(self, -1)
+            self.editwindow.SetText(data)
+            self.sizer.AddF(item=self.editwindow, flags=wx.SizerFlags(1).Expand())
+            self.Layout()
+
+#------------------------------------------------------------------------------
 
 class App(wx.App):
     def OnInit(self):
@@ -99,6 +133,7 @@ class App(wx.App):
         self.mainframe.Show()
         return True
 
+#------------------------------------------------------------------------------
 
 if __name__ == "__main__":
     app = App(redirect=False)
