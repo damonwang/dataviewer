@@ -2,9 +2,14 @@
 
 '''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010
 
+
+15:00 24 Jun 2010: added VarSelCtrl to choose x, y variables
 11:25 24 Jun 2010: refactored data display into DataSheet object (subclass of Panel)
 10:12 24 Jun 2010: opens multiple files from each Open command, in AuiNotebook
 17:00 22 Jun 2010: File menu with Open command, opens one file in a StyledTextCtrl'''
+
+#------------------------------------------------------------------------------
+# IMPORTS
 
 from __future__ import with_statement
 import wx
@@ -12,6 +17,14 @@ from wx import stc
 from wx import aui
 import os
 import sys
+import escan_data as ED
+import MPlot
+
+#------------------------------------------------------------------------------
+# GLOBALS
+
+padding = 5
+axes = ["X", "Y"]
 
 #------------------------------------------------------------------------------
 
@@ -46,7 +59,10 @@ class MainFrame(Frame):
         self.panel = wx.Panel(self)
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.panel.SetSizer(self.sizer)
-        self.nb = aui.AuiNotebook(parent=self.panel)
+        self.nb = aui.AuiNotebook(parent=self.panel, 
+                style=wx.aui.AUI_NB_DEFAULT_STYLE | 
+                    wx.aui.AUI_NB_TAB_EXTERNAL_MOVE | 
+                    wx.aui.AUI_NB_MIDDLE_CLICK_CLOSE)
         self.sizer.AddF(item=self.nb, flags=wx.SizerFlags(1).Expand())
 
         self.statusbar = self.CreateStatusBar()
@@ -85,12 +101,57 @@ class MainFrame(Frame):
         dlg.Destroy()
 #------------------------------------------------------------------------------
 
+class VarSelPanel(wx.Panel):
+    '''Lets user set a variable from allowed options via dropdown-menu.
+
+    Attributes:
+        var: variable controlled by this VarSelPanel
+        options: options for this variable
+        label: label to display to user
+        dropdown: dropdown menu to display to user
+        selection: choice made by user (None if user has not done anything)
+        sizer
+    '''
+
+    def __init__(self, parent, var, options=[], label=None):
+        wx.Panel.__init__(self, parent=parent)
+
+        self.var = var
+        self.options = options
+
+        self.sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.SetSizer(self.sizer)
+
+        if label is None:
+            label = "%s =" % var
+        self.label = wx.StaticText(parent=self, label=label)
+        self.sizer.AddF(item=self.label, flags=wx.SizerFlags().Center().Border())
+
+        self.dropdown = wx.Choice(parent=self, id=wx.NewId(), 
+                choices=self.options)
+        self.Bind(event=wx.EVT_CHOICE, handler=self.OnEvtChoice, 
+                source=self.dropdown)
+        self.sizer.AddF(item=self.dropdown, flags=wx.SizerFlags(1).Center())
+
+        self.Layout()
+
+    def OnEvtChoice(self, event):
+        '''sets attribute selection when user makes a choice'''
+
+        self.selection = event.GetString()
+
+#------------------------------------------------------------------------------
+
 class DataSheet(wx.Panel):
     '''Holds one data set
 
     Attributes:
         filename: name of file data came from
-        editwindow: StyledTextCtrl for editing data 
+        ctrlsizer: horizontal BoxSizer holding ctrlx, ctrly
+        ctrls: list of VarSelPanel controlling x axis data  source
+        plotbtn: button to make a plot
+        plot: Mplot window with plot
+        parent: parent window
         sizer
         no panel because it IS a panel!
     '''
@@ -111,18 +172,49 @@ class DataSheet(wx.Panel):
         wx.Panel.__init__(self, parent=parent)
 
         self.filename = filename
+        self.parent = parent
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        with open(filename, "r") as inf:
-            data = inf.read()
-            print >> sys.stderr, "opened %s and read %s" % (filename, data[:80])
+        self.ctrlsizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.sizer.AddF(item=self.ctrlsizer, flags=wx.SizerFlags())
 
-            self.editwindow = stc.StyledTextCtrl(self, -1)
-            self.editwindow.SetText(data)
-            self.sizer.AddF(item=self.editwindow, flags=wx.SizerFlags(1).Expand())
-            self.Layout()
+        self.data = ED.escan_data(file=filename)
+
+        self.ctrls = []
+        for var in axes:
+            self.ctrls.append(VarSelPanel(parent=self, var=var, 
+                options=self.data.sums_names))
+            self.ctrlsizer.AddF(item=self.ctrls[-1], flags=wx.SizerFlags().Border())
+
+        self.plotbtn = wx.Button(self, label="Plot")
+        self.ctrlsizer.AddF(item=self.plotbtn, flags=wx.SizerFlags().Right().Border())
+        self.Bind(event=wx.EVT_BUTTON, handler=self.plot, source=self.plotbtn)
+
+        self.Layout()
+
+    def plot(self, event):
+        '''Reads ctrls and plots'''
+
+        srcs = [0] * len(axes)
+        data = [0] * len(axes)
+
+        for i in range(len(axes)):
+            try:
+                srcs[i] = self.ctrls[i].selection
+            except AttributeError:
+                wx.MessageBox("Please choose your %s axis" % axes[i])
+                return None
+            data[i] = self.data.get_data(name=axes[i])
+
+
+        self.plot = MPlot.PlotFrame(parent=self)
+        self.sizer.AddF(item=self.plot, flags=wx.SizerFlags(1).Expand().Center())
+
+        self.plot.plot(data[0], data[1])
+
+        self.Layout()
 
 #------------------------------------------------------------------------------
 
