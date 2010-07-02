@@ -32,6 +32,22 @@ import MPlot
 padding = 5
 axes = ["X", "Y"]
 
+def _reportPedigree(self):
+    '''returns tree-like output describing parent-child relationships below the given window.
+    
+    Args: 
+        self: window to start reporting at
+        
+    Returns:
+        string with tree-like pedigree'''
+
+
+    return [str(self)] + sum( 
+            [ map(lambda s: "  " + s, _reportPedigree(child))
+                    for child in self.Children if "Children" in dir(child)
+            ], [])
+        
+
 #------------------------------------------------------------------------------
 
 class Frame(wx.Frame):
@@ -49,6 +65,7 @@ class MainFrame(Frame):
         sizer: sizer for panel, holding nb
         nb: holds one data file per page
         datasheets: holds open DataSheets
+        visibleDS: Datasheet shown in right pane
         statusbar
         menubar
     
@@ -66,15 +83,13 @@ class MainFrame(Frame):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.panel.SetSizer(self.sizer)
 
-        self.splitter = wx.SplitterWindow(parent=self.panel,
+        self.splitW = wx.SplitterWindow(parent=self.panel,
                 style=wx.SP_BORDER)
-        self.sizer.AddF(item=self.splitter, 
-                flags=wx.SizerFlags(1).Expand())
+        self.sizer.AddF(item=self.splitW, flags=wx.SizerFlags(1).Expand())
 
-        self.tree = wx.TreeCtrl(parent=self.splitter, 
+        self.tree = wx.TreeCtrl(parent=self.splitW, 
                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
         self.tree.AddRoot(text="root")
-        self.splitter.Initialize(self.tree)
 
         self.statusbar = self.CreateStatusBar()
         self.statusbar.SetStatusText("statusbar", 0)
@@ -85,6 +100,9 @@ class MainFrame(Frame):
         self.menubar.Append(filemenu, "&File")
         self.SetMenuBar(self.menubar)
         self.Bind(wx.EVT_MENU, self.OnClickFileOpen, filemenu_open)
+
+        self.visibleDS = wx.Panel(self.splitW)
+        self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS)
 
         self.panel.Layout()
 
@@ -108,22 +126,23 @@ class MainFrame(Frame):
                     continue
                 item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
                         text=os.path.basename(path))
-                ds = DataSheet(parent=self.splitter, filename=path, treeItem=item,
+                ds = DataSheet(parent=self.splitW, filename=path, treeItem=item,
                         writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
                         writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
                 self.datasheets.append(ds)
                 self.tree.SetItemPyData(item=item, obj=ds)
         dlg.Destroy()
 
-        if ds is not None:
-            if self.splitter.IsSplit():
-                self.splitter.ReplaceWindow(winOld=self.splitter.GetWindow2(),
-                    winNew=ds)
-            else: 
-                self.splitter.SplitVertically(window2=ds,
-                       window1=self.splitter.GetWindow1())
+        if ds != self.splitW.GetWindow2():
+            self.splitW.ReplaceWindow(winNew=ds, winOld=self.splitW.GetWindow2())
+            self.visibleDS = ds
 
+        print("\n".join(_reportPedigree(self)), file=sys.stderr)
+
+        self.sizer.SetSizeHints(self)
         self.sizer.Layout()
+
+
 #------------------------------------------------------------------------------
 
 class VarSelPanel(wx.Panel):
@@ -160,6 +179,7 @@ class VarSelPanel(wx.Panel):
                 source=self.dropdown)
         self.sizer.AddF(item=self.dropdown, flags=wx.SizerFlags(1).Center())
 
+        self.sizer.SetSizeHints(self)
         self.Refresh()
 
     def OnEvtComboBox(self, event):
@@ -236,6 +256,7 @@ class DataSheet(wx.Panel):
                 flags=wx.SizerFlags().Right().Border())
 
 
+        self.sizer.SetSizeHints(self)
         self.Layout()
     
     def onEvent(self, event):
@@ -269,6 +290,7 @@ class DataSheet(wx.Panel):
 
         self.plot.oplot(xdata=data["X"], ydata=data["Y"])
 
+        self.sizer.SetSizeHints(self)
         self.Layout()
         
 
@@ -286,15 +308,21 @@ class DataSheet(wx.Panel):
 
         newplot = MPlot.PlotPanel(parent=self)
         newplot.plot(xdata=data["X"], ydata=data["Y"])
-        if self.plot is not None and self.sizer.Detach(self.plot):
+        newplot.SetMinSize((400,300))
+        if self.plot is not None:
+            self.sizer.Detach(self.plot)
             print("destroying old plot", file=sys.stderr)
             self.plot.Destroy()
         self.plot = newplot
+        self.sizer.AddF(item=self.plot, 
+                flags=wx.SizerFlags(1).Expand().Center().Border())
 
-        self.sizer.AddF(item=self.plot, flags=wx.SizerFlags(1).Expand().Center())
         if self.plotbtn.GetLabel() != "Replot":
             self.plotbtn.SetLabel("Replot")
+
+        self.sizer.SetSizeHints(self)
         self.Layout()
+        wx.PostEvent(self, wx.SizeEvent())
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
