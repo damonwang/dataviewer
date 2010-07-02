@@ -113,7 +113,6 @@ class MainFrame(Frame):
                         writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
                 self.datasheets.append(ds)
                 self.tree.SetItemPyData(item=item, obj=ds)
-                self.sizer.AddF(item=ds, flags=wx.SizerFlags(5).Expand())
         dlg.Destroy()
 
         if ds is not None:
@@ -124,7 +123,7 @@ class MainFrame(Frame):
                 self.splitter.SplitVertically(window2=ds,
                        window1=self.splitter.GetWindow1())
 
-        self.panel.Layout()
+        self.sizer.Layout()
 #------------------------------------------------------------------------------
 
 class VarSelPanel(wx.Panel):
