@@ -32,6 +32,77 @@ import MPlot
 padding = 5
 axes = ["X", "Y"]
 
+def _twiddleSize(dest):
+    '''sends dest a useless wx.SizeEvent, to fix some bugs I don't understand.'''
+    dest.GetEventHandler().ProcessEvent(event=wx.SizeEvent(sz=dest.GetSize()))
+
+def createButton(handler, parent, label, sizer, flags=wx.SizerFlags().Border(), **kwargs):
+    '''creates a button with parent and label, binds to handler, and adds to
+    sizer with flags. Additional args go to Button constructor.
+    
+    Returns: a wx.Button'''
+
+    rv = wx.Button(parent=parent, label=label, **kwargs)
+    rv.Bind(event=wx.EVT_BUTTON, handler=handler)
+    sizer.AddF(item=rv, flags=flags)
+    return rv
+
+def createMenuBar(menubar, setInto=None):
+    '''creates a menubar and optionally attaches it to something
+
+    a menubar is a list of menus.
+
+    Args:
+        setInto: something with a SetMenuBar method
+        menubar: see above
+
+    Returns: a wx.Menubar'''
+
+    rv = wx.MenuBar()
+    for menu in menubar:
+        m = createMenu(menu=menu)
+        rv.Append(menu=m, title=menu[0])
+
+    if setInto is not None:
+        setInto.SetMenuBar(rv)
+
+    return rv
+
+def createMenu(menu, setInto=None):
+    '''creates a menu and optionally attaches it to a wx.MenuBar
+
+    a menu is described by a 2-tuple whose
+        first element is a title suitable for wx.Menu()
+        second element is a list of tuples and dicts:
+            lists represent submenus
+            dicts represent menu items
+
+    a menu item is represented by a dict suitable for **kwargs expansion into
+    wx.Menu.Append().
+
+    Args:
+        menu: see above
+        setInto: a wx.MenuBar to attach the result to
+
+    Returns: a wx.Menu'''
+
+    rv = wx.Menu(title=menu[0])
+    for item in menu[1]:
+        if isinstance(item, tuple):
+            rv.AppendMenu(text=item[0], submenu=createMenu(item))
+        elif isinstance(item, dict):
+            handler = item["handler"]
+            del item["handler"]
+            m = rv.Append(**item)
+            rv.Bind(event=wx.EVT_MENU, handler=handler, source=m)
+        else:
+            raise TypeError(item)
+    
+    if setInto is not None:
+        setInto.Append(menu=rv, title=rv.title)
+
+    return rv
+
 def _reportPedigree(self):
     '''returns tree-like output describing parent-child relationships below the given window.
     
@@ -101,12 +172,17 @@ class MainFrame(Frame):
         self.SetMenuBar(self.menubar)
         self.Bind(wx.EVT_MENU, self.OnClickFileOpen, filemenu_open)
 
+        #self.menubar = createMenuBar(setInto=self, menubar=[
+            #("&File", [dict(id=-1, text="&Open", help="Open a data file",
+                #handler=self.OnClickFileOpen)])])
+
         self.visibleDS = wx.Panel(self.splitW)
         self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS) 
         self.tree.SetMinSize(self.tree.GetSize())
 
         self.sizer.SetSizeHints(self)
         self.panel.Layout()
+
 
     def OnClickFileOpen(self, event):
         '''Event handler that asks for a file, creates an edit window
@@ -124,7 +200,7 @@ class MainFrame(Frame):
             for path in dlg.GetPaths():
                 if not os.path.isfile(path):
                     wx.MessageBox(caption="File not found", 
-                            message="file %s not found, not opened." % e.filename)
+                            message="file %s not found, not opened." % path)
                     continue
                 item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
                         text=os.path.basename(path))
@@ -159,33 +235,46 @@ class VarSelPanel(wx.Panel):
         label: label to display to user
         dropdown: dropdown menu to display to user
         selection: choice made by user (None if user has not done anything)
+        defchoice:  None means no default
+                    non-None in options means use that option
+                    non-None not in options means use first option
         sizer
     '''
 
-    def __init__(self, parent, var, options=[], defchoice=None, label=None):
+    def __init__(self, parent, var, options, **kwargs):
         wx.Panel.__init__(self, parent=parent)
 
-        self.var = var
-        self.options = options
-        if defchoice is not None:
-            self.selection = defchoice
+        self.var, self.options = var, options
+
+        print(self.options, file=sys.stderr)
+
+        dk = dict(sizerFlags=wx.SizerFlags().Border(), label="%s =" % var)
+        dk.update(**kwargs)
+
+        if 'defchoice' in kwargs:
+            if dk['defchoice'] in options:
+                self.selection = dk['defchoice']
+            else:
+                dk['defchoice'] = self.selection = options[0]
 
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.SetSizer(self.sizer)
 
-        if label is None:
-            label = "%s =" % var
-        self.label = wx.StaticText(parent=self, label=label)
+        self.label = wx.StaticText(parent=self, label=dk['label'])
         self.sizer.AddF(item=self.label, flags=wx.SizerFlags().Center().Border())
 
-        self.dropdown = wx.ComboBox(parent=self, value=defchoice,
-                style=wx.CB_READONLY, choices=self.options)
+        self.dropdown = wx.ComboBox(parent=self, style=wx.CB_READONLY,
+                choices=self.options)
+        if 'defchoice' in kwargs:
+            self.dropdown.SetValue(self.selection)
         self.Bind(event=wx.EVT_COMBOBOX, handler=self.OnEvtComboBox, 
                 source=self.dropdown)
         self.sizer.AddF(item=self.dropdown, flags=wx.SizerFlags(1).Center())
 
         self.sizer.SetSizeHints(self)
-        self.Refresh()
+
+        if 'sizer' in kwargs:
+            dk['sizer'].AddF(item=self, flags=dk['sizerFlags'])
 
     def OnEvtComboBox(self, event):
         '''sets attribute selection when user makes a choice'''
@@ -242,29 +331,23 @@ class DataSheet(wx.Panel):
 
         self.data = ED.escan_data(file=filename)
 
-        self.ctrls = []
-        for var in axes:
-            self.ctrls.append(VarSelPanel(parent=self, var=var, 
-                options=self.data.sums_names, 
-                defchoice=self.data.sums_names[0]))
-            self.ctrlsizer.AddF(item=self.ctrls[-1], 
-                    flags=wx.SizerFlags().Border())
+        self.ctrls = [ 
+            VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
+                options=[ x[0] for x in self.data.pos_names]) ,
+            VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
+                options=self.data.sums_names) ]
 
-        self.plotbtn = wx.Button(self, label="Plot")
-        self.plotbtn.Bind(event=wx.EVT_BUTTON, handler=self.onPlot)
-        self.ctrlsizer.AddF(item=self.plotbtn, 
-                flags=wx.SizerFlags().Right().Border())
-
-        self.oplotbtn = wx.Button(self, label="Overplot")
-        self.oplotbtn.Bind(event=wx.EVT_BUTTON, handler=self.onOverPlot)
-        self.ctrlsizer.AddF(item=self.oplotbtn, 
-                flags=wx.SizerFlags().Right().Border())
+        self.plotbtn = createButton(parent=self, label="Plot", 
+            handler=self.onPlot, sizer=self.ctrlsizer)
+        self.oplotbtn = createButton(parent=self, label="Overplot",
+            handler=self.onOverPlot, sizer=self.ctrlsizer)
 
         self.sizer.SetSizeHints(self)
         self.Layout()
     
     def onEvent(self, event):
         '''just pops up a MesssageBox announcing the event'''
+        pass
 
     def _getCtrls(self):
         '''collects the values of all controls
@@ -284,30 +367,31 @@ class DataSheet(wx.Panel):
         '''adds a trace to the existing plot'''
 
         ctrls = self._getCtrls()
-        data = {}
-        for axis in axes:
-            if axis not in ctrls:
-                wx.MessageBox("Please choose your %s axis" % axis)
-                return None
-            data[axis] = self.data.get_data(name=ctrls[axis])
+        try:
+            data = { "X" : self._getXData(name=ctrls["X"]), 
+                    "Y" : self._getYData(name=ctrls["Y"]) }
+        except KeyError, e:
+            wx.MessageBox("Please choose your %s axis" % e.args[0])
+            return None
         self.writeOut("overplotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
 
         self.plot.oplot(xdata=data["X"], ydata=data["Y"])
 
         self.sizer.SetSizeHints(self)
-        self.Layout()
-        
+        self.sizer.Layout()
+        _twiddleSize(self.Parent)
 
     def onPlot(self, event):
         '''Reads ctrls and plots'''
 
         ctrls = self._getCtrls()
-        data = {}
-        for axis in axes:
-            if axis not in ctrls:
-                wx.MessageBox("Please choose your %s axis" % axis)
-                return None
-            data[axis] = self.data.get_data(name=ctrls[axis])
+        try:
+            data = { "X" : self._getXData(name=ctrls["X"]), 
+                    "Y" : self._getYData(name=ctrls["Y"]) }
+        except KeyError, e:
+            wx.MessageBox("Please choose your %s axis" % e.args[0])
+            return None
+
         self.writeOut("plotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
 
         newplot = MPlot.PlotPanel(parent=self)
@@ -326,6 +410,23 @@ class DataSheet(wx.Panel):
 
         self.sizer.SetSizeHints(self)
         self.Layout()
+        _twiddleSize(self.Parent)
+
+    def _getXData(self, name):
+        '''returns a 1D iterable of positioning data for X axis
+
+        Args:
+            name: a name from self.data.pos_names'''
+
+        return [ self.data.pos[i] for i in range(len(self.data.pos)) if self.data.pos_names[i][0] == name][0]
+
+    def _getYData(self, name):
+        '''returns a 1D iterable of intensity(?) data for Y axis
+        
+        Args:
+            name: a name from self.data.sums_names'''
+
+        return self.data.get_data(name=name)
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
