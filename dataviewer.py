@@ -102,8 +102,10 @@ class MainFrame(Frame):
         self.Bind(wx.EVT_MENU, self.OnClickFileOpen, filemenu_open)
 
         self.visibleDS = wx.Panel(self.splitW)
-        self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS)
+        self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS) 
+        self.tree.SetMinSize(self.tree.GetSize())
 
+        self.sizer.SetSizeHints(self)
         self.panel.Layout()
 
     def OnClickFileOpen(self, event):
@@ -126,6 +128,7 @@ class MainFrame(Frame):
                     continue
                 item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
                         text=os.path.basename(path))
+                self.tree.Fit()
                 ds = DataSheet(parent=self.splitW, filename=path, treeItem=item,
                         writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
                         writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
@@ -134,7 +137,9 @@ class MainFrame(Frame):
         dlg.Destroy()
 
         if ds != self.splitW.GetWindow2():
-            self.splitW.ReplaceWindow(winNew=ds, winOld=self.splitW.GetWindow2())
+            old = self.splitW.GetWindow2()
+            self.splitW.ReplaceWindow(winNew=ds, winOld=old)
+            old.Destroy()
             self.visibleDS = ds
 
         print("\n".join(_reportPedigree(self)), file=sys.stderr)
@@ -255,7 +260,6 @@ class DataSheet(wx.Panel):
         self.ctrlsizer.AddF(item=self.oplotbtn, 
                 flags=wx.SizerFlags().Right().Border())
 
-
         self.sizer.SetSizeHints(self)
         self.Layout()
     
@@ -322,7 +326,6 @@ class DataSheet(wx.Panel):
 
         self.sizer.SetSizeHints(self)
         self.Layout()
-        wx.PostEvent(self, wx.SizeEvent())
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
