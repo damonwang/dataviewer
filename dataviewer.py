@@ -134,8 +134,6 @@ class MainFrame(Frame):
     
     '''
 
-    menuconfig = [ ("&File", [dict(id=-1, text="&Open", help="Open a data file",
-                handler=self.OnClickFileOpen)])]
 
     def __init__(self, *args, **kwargs):
         '''Arguments get passed directly to Frame.__init__(). Creates
@@ -149,20 +147,22 @@ class MainFrame(Frame):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.panel.SetSizer(self.sizer)
 
-        self.statusbar = self.CreateStatusBar()
-        self.statusbar.SetStatusText("statusbar", 0)
-
-        self.menubar = createMenuBar(setInto=self, menubar=self.menuconfig)
-
         self.splitW = wx.SplitterWindow(parent=self.panel,
                 style=wx.SP_BORDER)
         self.sizer.AddF(item=self.splitW, flags=wx.SizerFlags(1).Expand())
 
+        self.statusbar = self.CreateStatusBar()
+        self.statusbar.SetStatusText("statusbar", 0)
+
+        self.menubar = createMenuBar(setInto=self, menubar=self.configMenuBar())
+
+
         self.tree = wx.TreeCtrl(parent=self.splitW, 
                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
         self.tree.AddRoot(text="root")
+        self.tree.Bind(event=wx.EVT_TREE_ITEM_ACTIVATED, handler=self.onTreeItemActivated)
 
-        self.visibleDS = wx.Panel(self.splitW)
+        self.visibleDS = self.blankPanel = wx.Panel(self.splitW)
         self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS) 
         self.tree.SetMinSize(self.tree.GetSize())
 
@@ -174,12 +174,8 @@ class MainFrame(Frame):
         '''Event handler that asks for a file, creates an edit window
         (StyledTextCtrl), and reads the file into that window.'''
 
-        dlg = wx.FileDialog(
-            parent=self, 
-            message="Choose a data file",
-            defaultDir=os.getcwd(),
-            style=wx.OPEN | wx.CHANGE_DIR | wx.MULTIPLE
-            )
+        dlg = wx.FileDialog(parent=self, message="Choose a data file",
+            defaultDir=os.getcwd(), style=wx.OPEN | wx.CHANGE_DIR | wx.MULTIPLE)
 
         ds = None
         if dlg.ShowModal() == wx.ID_OK:
@@ -198,17 +194,40 @@ class MainFrame(Frame):
                 self.tree.SetItemPyData(item=item, obj=ds)
         dlg.Destroy()
 
-        if ds != self.splitW.GetWindow2():
-            old = self.splitW.GetWindow2()
-            self.splitW.ReplaceWindow(winNew=ds, winOld=old)
-            old.Destroy()
-            self.visibleDS = ds
+        if ds is not None and ds != self.splitW.GetWindow2():
+            self.showRightPane(ds)
 
-        print("\n".join(_reportPedigree(self)), file=sys.stderr)
+        #print("\n".join(_reportPedigree(self)), file=sys.stderr)
 
         self.sizer.SetSizeHints(self)
         self.sizer.Layout()
 
+    def configMenuBar(self):
+        '''returns suitable createMenuBar input for the desired menu bar'''
+
+        filemenu = ("&File", [])
+        filemenu[1].append(dict(id=-1, text="&Open", help="Open a data file",
+            handler=self.OnClickFileOpen))
+
+        return [filemenu]
+
+    def showRightPane(self, pane):
+        '''sets pane as the right-hand window of the SplitterWindow. Does not
+        destroy the current right-hand pane, just removes it.'''
+
+        print("entered showRightPane, showing %s" % pane)
+        old, self.visibleDS = self.splitW.GetWindow2(), pane
+        self.splitW.ReplaceWindow(winNew=self.visibleDS, winOld=old)
+        old.Hide()
+        pane.Show()
+        self.Layout()
+
+    def onTreeItemActivated(self, event):
+        '''when user clicks on a DataSheet's item in the tree, show that DataSheet.'''
+
+        print("entered onTreeItemActivated, item is %s" % event.GetItem())
+
+        self.showRightPane(self.tree.GetItemPyData(event.GetItem()))
 
 #------------------------------------------------------------------------------
 
@@ -319,9 +338,9 @@ class DataSheet(wx.Panel):
 
         self.ctrls = [ 
             VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
-                options=[ x[0] for x in self.data.pos_names]) ,
+                options=[ x[0] for x in self.data.pos_names], defchoice=-1),
             VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
-                options=self.data.sums_names) ]
+                options=self.data.sums_names, defchoice=-1) ]
 
         self.plotbtn = createButton(parent=self, label="Plot", 
             handler=self.onPlot, sizer=self.ctrlsizer)
