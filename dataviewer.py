@@ -273,6 +273,8 @@ class CtrlError(Exception):
 class VarSelPanel(wx.Panel):
     '''Lets user set a variable from allowed options via dropdown-menu.
 
+    At least one option must be provided to constructor!
+
     Attributes:
         var: variable controlled by this VarSelPanel
         options: options for this variable
@@ -288,9 +290,9 @@ class VarSelPanel(wx.Panel):
     def __init__(self, parent, var, options, **kwargs):
         wx.Panel.__init__(self, parent=parent)
 
-        self.var, self.options = var, options
+        self.var = var
 
-        print(self.options, file=sys.stderr)
+        print(options, file=sys.stderr)
 
         dk = dict(sizerFlags=wx.SizerFlags().Border(), label="%s =" % var)
         dk.update(**kwargs)
@@ -308,10 +310,10 @@ class VarSelPanel(wx.Panel):
         self.sizer.AddF(item=self.label, flags=wx.SizerFlags().Center().Border())
 
         self.dropdown = wx.ComboBox(parent=self, style=wx.CB_READONLY,
-                choices=self.options)
+                choices=options)
         if 'defchoice' in kwargs:
             self.dropdown.SetValue(self.selection)
-        self.Bind(event=wx.EVT_COMBOBOX, handler=self.OnEvtComboBox, 
+        self.Bind(event=wx.EVT_COMBOBOX, handler=self.onEvtComboBox, 
                 source=self.dropdown)
         self.sizer.AddF(item=self.dropdown, flags=wx.SizerFlags(1).Center())
 
@@ -320,10 +322,26 @@ class VarSelPanel(wx.Panel):
         if 'sizer' in kwargs:
             dk['sizer'].AddF(item=self, flags=dk['sizerFlags'])
 
-    def OnEvtComboBox(self, event):
+    def onEvtComboBox(self, event):
         '''sets attribute selection when user makes a choice'''
 
         self.selection = event.GetString()
+
+    def setOptions(self, options, defchoice=None):
+
+        self.dropdown.SetItems(options)
+        oldoptions = self.dropdown.GetItems()
+
+        if defchoice is None:
+            if self.selection not in oldoptions:
+                self.selection = self.options[0]
+                self.dropdown.Select(0)
+        elif defchoice in options:
+            dk['defchoice'] = self.selection = defchoice
+            self.dropdown.Select(self.dropdown.GetItems().index(defchoice))
+        else:
+            dk['defchoice'] = self.selection = self.options[0]
+            self.Select(0)
 
 #------------------------------------------------------------------------------
 
@@ -378,13 +396,20 @@ class DataSheet(wx.Panel):
         self.sizer.AddF(item=self.plot, 
                 flags=wx.SizerFlags(1).Expand().Center().Border())
 
+        self.plotframes = []
+
         self.data = self.getData(file=self.filename)
 
         self.ctrls = [ 
             VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
                 options=self.getXDataNames(), defchoice=-1),
             VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
-                options=self.getYDataNames(), defchoice=-1) ]
+                options=self.getYDataNames(), defchoice=-1),
+            VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
+                options=[], defchoicelabel="in")]
+
+        self.plotctrl = self.ctrls[-1] 
+        self.updatePlotCtrl()
 
         self.plotbtn = createButton(parent=self, label="Plot", 
             handler=self.onPlot, sizer=self.ctrlsizer)
@@ -415,35 +440,36 @@ class DataSheet(wx.Panel):
     def onOverPlot(self, event):
         '''adds a trace to the existing plot'''
 
-        ctrls = self._getCtrls()
-        try:
-            data = { "X" : self.getXData(name=ctrls["X"]), 
-                    "Y" : self.getYData(name=ctrls["Y"]) }
-        except KeyError, e:
-            wx.MessageBox("Please choose your %s axis" % e.args[0])
-            return None
-        self.writeOut("overplotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
+        self.onPlot(event, overplot=True)
 
-        self.plot.oplot(xdata=data["X"], ydata=data["Y"])
-
-        self.sizer.SetSizeHints(self)
-        self.sizer.Layout()
-        _twiddleSize(self.Parent)
-
-    def onPlot(self, event):
+    def onPlot(self, event, overplot=False):
         '''Reads ctrls and plots'''
 
         ctrls = self._getCtrls()
         try:
             data = { "X" : self.getXData(name=ctrls["X"]), 
                     "Y" : self.getYData(name=ctrls["Y"]) }
+            dest = ctrls["Plot"]
         except KeyError, e:
             wx.MessageBox("Please choose your %s axis" % e.args[0])
             return None
 
-        self.writeOut("plotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
+        if dest == "In Panel":
+            dest = self.plot
+        elif dest == "New Plot":
+            dest = MPlot.PlotFrame(parent=self)
+            self.plotframes.append(dest)
+            dest.Show()
+            self.updatePlotCtrl()
+        else:
+            dest = self.plotframes[int(dest.split()[1])]
 
-        self.plot.plot(xdata=data["X"], ydata=data["Y"])
+        self.writeOut("%s %s vs %s" % (("Plotting", "Overplotting")[overplot], 
+            ctrls["Y"], ctrls["X"]))
+
+        if overplot:
+            dest.oplot(xdata=data["X"], ydata=data["Y"])
+        else: dest.plot(xdata=data["X"], ydata=data["Y"])
 
         self.sizer.SetSizeHints(self)
         self.Layout()
@@ -458,6 +484,12 @@ class DataSheet(wx.Panel):
         '''default error goes to sys.stderr'''
 
         print(s, file=sys.stderr)
+
+    def updatePlotCtrl(self):
+
+        self.plotctrl.setOptions(sum([ 
+            [ "Plot %d" % i for i in range(len(self.plotframes))], 
+            ["In Panel", "New Plot" ] ], []), defchoice=-1)
 
 #------------------------------------------------------------------------------
 
