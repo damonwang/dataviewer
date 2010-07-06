@@ -1,14 +1,6 @@
 #!/usr/bin/env python
 
-'''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010
-
-
-15:00 01 Jul 2010: refactored controls into function to pull all selections into hash
-10:00 01 Jul 2010: plotting works
-15:00 24 Jun 2010: added VarSelCtrl to choose x, y variables
-11:25 24 Jun 2010: refactored data display into DataSheet object (subclass of Panel)
-10:12 24 Jun 2010: opens multiple files from each Open command, in AuiNotebook
-17:00 22 Jun 2010: File menu with Open command, opens one file in a StyledTextCtrl'''
+'''a clone of data viewer by Matt Newville, as a wxPython learning project by Damon Wang. 22 June 2010 '''
 
 #------------------------------------------------------------------------------
 # IMPORTS
@@ -60,7 +52,7 @@ def createMenuBar(menubar, setInto=None):
 
     rv = wx.MenuBar()
     for menu in menubar:
-        m = createMenu(menu=menu)
+        m = createMenu(menu=menu, container=setInto)
         rv.Append(menu=m, title=menu[0])
 
     if setInto is not None:
@@ -68,7 +60,7 @@ def createMenuBar(menubar, setInto=None):
 
     return rv
 
-def createMenu(menu, setInto=None):
+def createMenu(menu, container, setInto=None):
     '''creates a menu and optionally attaches it to a wx.MenuBar
 
     a menu is described by a 2-tuple whose
@@ -86,7 +78,7 @@ def createMenu(menu, setInto=None):
 
     Returns: a wx.Menu'''
 
-    rv = wx.Menu(title=menu[0])
+    rv = wx.Menu()
     for item in menu[1]:
         if isinstance(item, tuple):
             rv.AppendMenu(text=item[0], submenu=createMenu(item))
@@ -94,12 +86,12 @@ def createMenu(menu, setInto=None):
             handler = item["handler"]
             del item["handler"]
             m = rv.Append(**item)
-            rv.Bind(event=wx.EVT_MENU, handler=handler, source=m)
+            container.Bind(event=wx.EVT_MENU, handler=handler, source=m)
         else:
             raise TypeError(item)
     
     if setInto is not None:
-        setInto.Append(menu=rv, title=rv.title)
+        setInto.Append(menu=rv, title=menu[0])
 
     return rv
 
@@ -142,6 +134,9 @@ class MainFrame(Frame):
     
     '''
 
+    menuconfig = [ ("&File", [dict(id=-1, text="&Open", help="Open a data file",
+                handler=self.OnClickFileOpen)])]
+
     def __init__(self, *args, **kwargs):
         '''Arguments get passed directly to Frame.__init__(). Creates
         statusbar, menubar, and a single full-size panel.'''
@@ -154,6 +149,11 @@ class MainFrame(Frame):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.panel.SetSizer(self.sizer)
 
+        self.statusbar = self.CreateStatusBar()
+        self.statusbar.SetStatusText("statusbar", 0)
+
+        self.menubar = createMenuBar(setInto=self, menubar=self.menuconfig)
+
         self.splitW = wx.SplitterWindow(parent=self.panel,
                 style=wx.SP_BORDER)
         self.sizer.AddF(item=self.splitW, flags=wx.SizerFlags(1).Expand())
@@ -161,20 +161,6 @@ class MainFrame(Frame):
         self.tree = wx.TreeCtrl(parent=self.splitW, 
                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
         self.tree.AddRoot(text="root")
-
-        self.statusbar = self.CreateStatusBar()
-        self.statusbar.SetStatusText("statusbar", 0)
-
-        self.menubar = wx.MenuBar()
-        filemenu = wx.Menu()
-        filemenu_open = filemenu.Append(-1, "&Open", "Open a data file")
-        self.menubar.Append(filemenu, "&File")
-        self.SetMenuBar(self.menubar)
-        self.Bind(wx.EVT_MENU, self.OnClickFileOpen, filemenu_open)
-
-        #self.menubar = createMenuBar(setInto=self, menubar=[
-            #("&File", [dict(id=-1, text="&Open", help="Open a data file",
-                #handler=self.OnClickFileOpen)])])
 
         self.visibleDS = wx.Panel(self.splitW)
         self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS) 
