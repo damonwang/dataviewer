@@ -180,18 +180,7 @@ class MainFrame(Frame):
         ds = None
         if dlg.ShowModal() == wx.ID_OK:
             for path in dlg.GetPaths():
-                if not os.path.isfile(path):
-                    wx.MessageBox(caption="File not found", 
-                            message="file %s not found, not opened." % path)
-                    continue
-                item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
-                        text=os.path.basename(path))
-                self.tree.Fit()
-                ds = DataSheet(parent=self.splitW, filename=path, treeItem=item,
-                        writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
-                        writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
-                self.datasheets.append(ds)
-                self.tree.SetItemPyData(item=item, obj=ds)
+                ds = self.openDataSheet(path)
         dlg.Destroy()
 
         if ds is not None and ds != self.splitW.GetWindow2():
@@ -229,7 +218,57 @@ class MainFrame(Frame):
 
         self.showRightPane(self.tree.GetItemPyData(event.GetItem()))
 
+    def openDataSheet(self, path):
+        '''identifies the filetype, creates the DataSheet, adds it to the tree, and shows it.'''
+
+        # TODO this should be pushed down into the DataSheet constructor
+        if not os.path.isfile(path):
+            wx.MessageBox(caption="File not found", 
+                    message="file %s not found, not opened." % path)
+            return
+
+        item=self.tree.AppendItem(parent=self.tree.GetRootItem(), 
+                text=os.path.basename(path))
+        self.tree.Fit()
+
+        ds = None
+        for filetype in [EpicsSheet]:
+            try:
+                ds = filetype(parent=self.splitW, filename=path, treeItem=item,
+                        writeOut=lambda s: self.statusbar.SetStatusText(s, 0),
+                        writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
+                break;
+            except FileTypeError:
+                continue
+        if ds is not None:
+            self.datasheets.append(ds)
+            self.tree.SetItemPyData(item=item, obj=ds)
+        else:
+            self.tree.Delete(item)
+            wx.MessageBox("could not recognize filetype")
+
+        return ds
+
 #------------------------------------------------------------------------------
+# Exceptions
+
+class FileTypeError(Exception):
+    def __init__(self, filename): 
+        self.filename = filename
+    
+    def __str__(self):
+        return "FileTypeError: %s of unrecognized type" % self.filename
+
+class CtrlError(Exception):
+    def __init__(self, ctrl, value):
+        self.ctrl = ctrl
+        self.value = value
+
+    def __str__(self):
+        return "CtrlError: %s set to %s (invalid)" % (self.ctrl, self.value)
+
+#------------------------------------------------------------------------------
+
 
 class VarSelPanel(wx.Panel):
     '''Lets user set a variable from allowed options via dropdown-menu.
@@ -305,28 +344,27 @@ class DataSheet(wx.Panel):
         no panel because it IS a panel!
     '''
 
-    def __init__(self, parent, filename=None, treeItem=None,
-            writeOut=lambda s: self._def_writeOut,
-            writeErr=lambda s: self._def_writeErr):
+    def __init__(self, parent, **kwargs):
         '''Reads in the file and displays it.
         
         Args:
             parent: parent window
             filename: name of data file
+            treeitem: wx.TreeItemId of this sheet's entry in the left-hand nav
             writeOut: function that writes normal output to the right place
             writeErr: same for errors
             
         Throws:
             IOError(errno=2) if file not found'''
 
-        if not os.path.isfile(filename):
-            raise IOError(2, "no such file", filename)
-
         wx.Panel.__init__(self, parent=parent)
 
-        self.filename, self.parent, self.plot = filename, parent, None
-        self.treeItem = treeItem
-        self.writeOut, self.writeErr = writeOut, writeErr
+        defaults = dict(filename=None, parent=None, treeItem=None, 
+            writeOut=lambda s: self._def_writeOut,
+            writeErr=lambda s: self._def_writeErr)
+
+        for attr in ["filename", "parent", "treeItem", "writeOut", "writeErr"]:
+            self.__setattr__(attr, kwargs.get(attr, defaults[attr]))
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
@@ -334,13 +372,19 @@ class DataSheet(wx.Panel):
         self.ctrlsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.AddF(item=self.ctrlsizer, flags=wx.SizerFlags())
 
-        self.data = ED.escan_data(file=filename)
+        self.plot = MPlot.PlotPanel(parent=self)
+        self.plot.SetMinSize((400,300))
+        self.plot.SetSize(self.plot.GetMinSize())
+        self.sizer.AddF(item=self.plot, 
+                flags=wx.SizerFlags(1).Expand().Center().Border())
+
+        self.data = self.getData(file=self.filename)
 
         self.ctrls = [ 
             VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
-                options=[ x[0] for x in self.data.pos_names], defchoice=-1),
+                options=self.getXDataNames(), defchoice=-1),
             VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
-                options=self.data.sums_names, defchoice=-1) ]
+                options=self.getYDataNames(), defchoice=-1) ]
 
         self.plotbtn = createButton(parent=self, label="Plot", 
             handler=self.onPlot, sizer=self.ctrlsizer)
@@ -373,8 +417,8 @@ class DataSheet(wx.Panel):
 
         ctrls = self._getCtrls()
         try:
-            data = { "X" : self._getXData(name=ctrls["X"]), 
-                    "Y" : self._getYData(name=ctrls["Y"]) }
+            data = { "X" : self.getXData(name=ctrls["X"]), 
+                    "Y" : self.getYData(name=ctrls["Y"]) }
         except KeyError, e:
             wx.MessageBox("Please choose your %s axis" % e.args[0])
             return None
@@ -391,47 +435,19 @@ class DataSheet(wx.Panel):
 
         ctrls = self._getCtrls()
         try:
-            data = { "X" : self._getXData(name=ctrls["X"]), 
-                    "Y" : self._getYData(name=ctrls["Y"]) }
+            data = { "X" : self.getXData(name=ctrls["X"]), 
+                    "Y" : self.getYData(name=ctrls["Y"]) }
         except KeyError, e:
             wx.MessageBox("Please choose your %s axis" % e.args[0])
             return None
 
         self.writeOut("plotting %s vs %s" % (ctrls["Y"], ctrls["X"]))
 
-        newplot = MPlot.PlotPanel(parent=self)
-        newplot.plot(xdata=data["X"], ydata=data["Y"])
-        newplot.SetMinSize((400,300))
-        if self.plot is not None:
-            self.sizer.Detach(self.plot)
-            print("destroying old plot", file=sys.stderr)
-            self.plot.Destroy()
-        self.plot = newplot
-        self.sizer.AddF(item=self.plot, 
-                flags=wx.SizerFlags(1).Expand().Center().Border())
-
-        if self.plotbtn.GetLabel() != "Replot":
-            self.plotbtn.SetLabel("Replot")
+        self.plot.plot(xdata=data["X"], ydata=data["Y"])
 
         self.sizer.SetSizeHints(self)
         self.Layout()
         _twiddleSize(self.Parent)
-
-    def _getXData(self, name):
-        '''returns a 1D iterable of positioning data for X axis
-
-        Args:
-            name: a name from self.data.pos_names'''
-
-        return [ self.data.pos[i] for i in range(len(self.data.pos)) if self.data.pos_names[i][0] == name][0]
-
-    def _getYData(self, name):
-        '''returns a 1D iterable of intensity(?) data for Y axis
-        
-        Args:
-            name: a name from self.data.sums_names'''
-
-        return self.data.get_data(name=name)
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
@@ -442,6 +458,48 @@ class DataSheet(wx.Panel):
         '''default error goes to sys.stderr'''
 
         print(s, file=sys.stderr)
+
+#------------------------------------------------------------------------------
+
+class EpicsSheet(DataSheet):
+
+    def getXData(self, name):
+        '''returns a 1D iterable of positioning data for X axis
+
+        Args:
+            name: a name from self.data.pos_names'''
+
+        return [ self.data.pos[i] 
+                for i in range(len(self.data.pos)) 
+                if self.data.pos_names[i][0] == name][0]
+
+    def getXDataNames(self):
+
+        return [ x[0] for x in self.data.pos_names]
+
+    def getYDataNames(self):
+
+        return self.data.sums_names
+
+    def getYData(self, name):
+        '''returns a 1D iterable of intensity(?) data for Y axis
+        
+        Args:
+            name: a name from self.data.sums_names'''
+
+        return self.data.get_data(name=name)
+
+    def getData(self, file):
+
+        if not os.path.isfile(file):
+            raise IOError(2, "no such file", file)
+
+        rv = ED.escan_data(file=file)
+        # escan_data returns successfully regardless of whether it actually
+        # opens the file or not, so we have to guess based on what comes back
+        if rv.det_names != []:
+            return rv
+        else: raise FileTypeError(file)
 
 #------------------------------------------------------------------------------
 
