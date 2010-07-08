@@ -160,7 +160,7 @@ class MainFrame(Frame):
         self.tree = wx.TreeCtrl(parent=self.splitW, 
                 style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
         self.tree.AddRoot(text="root")
-        self.tree.Bind(event=wx.EVT_TREE_ITEM_ACTIVATED, handler=self.onTreeItemActivated)
+        self.tree.Bind(event=wx.EVT_TREE_SEL_CHANGED, handler=self.onTreeItemActivated)
 
         self.visibleDS = self.blankPanel = wx.Panel(self.splitW)
         self.splitW.SplitVertically(window1=self.tree, window2=self.visibleDS) 
@@ -183,8 +183,8 @@ class MainFrame(Frame):
                 ds = self.openDataSheet(path)
         dlg.Destroy()
 
-        if ds is not None and ds != self.splitW.GetWindow2():
-            self.showRightPane(ds)
+        #if ds is not None and ds != self.splitW.GetWindow2():
+        #    self.showRightPane(ds)
 
         #print("\n".join(_reportPedigree(self)), file=sys.stderr)
 
@@ -243,6 +243,7 @@ class MainFrame(Frame):
         if ds is not None:
             self.datasheets.append(ds)
             self.tree.SetItemPyData(item=item, obj=ds)
+            self.tree.SelectItem(item=item)
         else:
             self.tree.Delete(item)
             wx.MessageBox("could not recognize filetype")
@@ -334,14 +335,14 @@ class VarSelPanel(wx.Panel):
 
         if defchoice is None:
             if self.selection not in oldoptions:
-                self.selection = self.options[0]
+                self.selection = options[0]
                 self.dropdown.Select(0)
         elif defchoice in options:
-            dk['defchoice'] = self.selection = defchoice
+            self.selection = defchoice
             self.dropdown.Select(self.dropdown.GetItems().index(defchoice))
         else:
-            dk['defchoice'] = self.selection = self.options[0]
-            self.Select(0)
+            self.selection = options[0]
+            self.dropdown.Select(0)
 
 #------------------------------------------------------------------------------
 
@@ -454,26 +455,27 @@ class DataSheet(wx.Panel):
             wx.MessageBox("Please choose your %s axis" % e.args[0])
             return None
 
-        if dest == "In Panel":
+        if self.isPanel(dest):
             dest = self.plot
-        elif dest == "New Plot":
+        elif self.isNewFrame(dest):
             dest = MPlot.PlotFrame(parent=self)
             self.plotframes.append(dest)
             dest.Show()
             self.updatePlotCtrl()
-        else:
+        else: # self.isExistingFrame(dest)
             dest = self.plotframes[int(dest.split()[1])]
 
         self.writeOut("%s %s vs %s" % (("Plotting", "Overplotting")[overplot], 
             ctrls["Y"], ctrls["X"]))
 
-        if overplot:
-            dest.oplot(xdata=data["X"], ydata=data["Y"])
-        else: dest.plot(xdata=data["X"], ydata=data["Y"])
+        if overplot and self.isExistingFrame(ctrls["Plot"]):
+            dest.oplot(data["X"], data["Y"])
+        else: dest.plot(data["X"], data["Y"])
 
-        self.sizer.SetSizeHints(self)
-        self.Layout()
-        _twiddleSize(self.Parent)
+        if self.isPanel(ctrls["Plot"]):
+            self.sizer.SetSizeHints(self)
+            self.Layout()
+            _twiddleSize(self.Parent)
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
@@ -484,6 +486,13 @@ class DataSheet(wx.Panel):
         '''default error goes to sys.stderr'''
 
         print(s, file=sys.stderr)
+
+    def isNewFrame(self, dest):
+        return dest == "New Plot"
+    def isPanel(self, dest):
+        return dest == "In Panel"
+    def isExistingFrame(self, dest):
+        return "Plot " in dest
 
     def updatePlotCtrl(self):
 
