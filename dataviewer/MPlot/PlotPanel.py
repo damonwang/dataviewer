@@ -367,6 +367,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
             fmt = "X,Y= %s, %s" % (self._xfmt, self._yfmt)
             self.write_message(fmt % (event.xdata,event.ydata), panel=1)
         else:
+            # Damon Wang 8 Jun 2010---this throws an error. see gh-14
             self.conf.zoom_init = self.axes.transData.inverse_xy_tup((event.x, event.y))
 
         self.cursor_mode = 'zoom'
