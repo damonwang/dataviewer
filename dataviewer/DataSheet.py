@@ -24,6 +24,8 @@ class DataSheet(wx.Panel):
         no panel because it IS a panel!
     '''
 
+    inPanelOpt, inNewFrameOpt = "In Panel", "New Plot"
+
     def __init__(self, parent, **kwargs):
         '''Reads in the file and displays it.
         
@@ -111,27 +113,41 @@ class DataSheet(wx.Panel):
         try:
             data = { "X" : self.getXData(name=ctrls["X"]), 
                     "Y" : self.getYData(name=ctrls["Y"]) }
-            dest = ctrls["Plot"]
+            destChoice = ctrls["Plot"]
         except KeyError, e:
             wx.MessageBox("Please choose your %s axis" % e.args[0])
             return None
 
-        if self.isPanel(dest):
+        if self.isPanel(destChoice):
             dest = self.plot
-        elif self.isNewFrame(dest):
-            dest = MPlot.PlotFrame(parent=self)
+        elif self.isNewFrame(destChoice):
+            dest = MPlot.PlotFrame(parent=self, 
+                    name="%s v. %s" % (ctrls["Y"], ctrls["X"]))
             self.plotframes.append(dest)
+            dest.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
             dest.Show()
             self.updatePlotCtrl()
-        else: # self.isExistingFrame(dest)
-            dest = self.plotframes[int(dest.split()[1])]
+        elif self.isExistingFrame(destChoice):
+            try:
+                dest = [ p for p in self.plotframes 
+                        if "Plot %s" % p.GetName() == destChoice ][0]
+            except IndexError:
+                wx.MessageBox("could not find existing plot '%s'" % destChoice)
+                return
+        else: 
+            wx.MessageBox("cannot plot to '%s'---no such destination" % destChoice)
+            return
 
         self.writeOut("%s %s vs %s" % (("Plotting", "Overplotting")[overplot], 
             ctrls["Y"], ctrls["X"]))
 
         if overplot and not self.isNewFrame(ctrls["Plot"]):
             dest.oplot(data["X"], data["Y"])
-        else: dest.plot(data["X"], data["Y"])
+        else: 
+            dest.plot(data["X"], data["Y"])
+            if self.isExistingFrame(destChoice):
+                dest.SetName("%s v. %s" % (ctrls["Y"], ctrls["X"]))
+                self.updatePlotCtrl()
 
         if self.isPanel(ctrls["Plot"]):
             self.sizer.SetSizeHints(self)
@@ -150,15 +166,32 @@ class DataSheet(wx.Panel):
 
         print(s, file=sys.stderr)
 
-    def isNewFrame(self, dest):
-        return dest == "New Plot"
-    def isPanel(self, dest):
-        return dest == "In Panel"
-    def isExistingFrame(self, dest):
+    @staticmethod
+    def isNewFrame(dest):
+        return dest == DataSheet.inNewFrameOpt
+
+    @staticmethod
+    def isPanel(dest):
+        return dest == DataSheet.inPanelOpt
+
+    @staticmethod
+    def isExistingFrame(dest):
         return "Plot " in dest
 
-    def updatePlotCtrl(self):
+    def onPlotFrameClose(self, event):
+        pf = event.GetEventObject()
+        try:
+            self.plotframes.remove(pf)
+        except ValueError:
+            pass
 
-        self.plotctrl.setOptions(sum([ 
-            [ "Plot %d" % i for i in range(len(self.plotframes))], 
-            ["In Panel", "New Plot" ] ], []), defchoice=-1)
+        self.updatePlotCtrl()
+        pf.Destroy()
+
+    def updatePlotCtrl(self):
+        '''discovers possible plotting destinations and updates the control.'''
+
+        opts = ["Plot %s" % p.GetName() for p in self.plotframes]
+        opts += [ DataSheet.inPanelOpt, DataSheet.inNewFrameOpt ]
+
+        self.plotctrl.setOptions(opts, defchoice=-1)

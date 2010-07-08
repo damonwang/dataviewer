@@ -4,7 +4,6 @@ import os
 
 from WxUtil import *
 from Exceptions import *
-
 from EpicsSheet import EpicsSheet
 
 class Frame(wx.Frame):
