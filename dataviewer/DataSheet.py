@@ -41,44 +41,19 @@ class DataSheet(wx.Panel):
 
         wx.Panel.__init__(self, parent=parent)
 
-        defaults = dict(filename=None, parent=None, treeItem=None, 
+        defaults = dict(filename=None, parent=None, treeItem=None, plotframes=[],
             writeOut=lambda s: self._def_writeOut,
             writeErr=lambda s: self._def_writeErr)
 
-        for attr in ["filename", "parent", "treeItem", "writeOut", "writeErr"]:
+        for attr in ["filename", "parent", "treeItem", "writeOut", "writeErr", "plotframes"]:
             self.__setattr__(attr, kwargs.get(attr, defaults[attr]))
 
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        self.ctrlsizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.sizer.AddF(item=self.ctrlsizer, flags=wx.SizerFlags())
-
-        self.plot = MPlot.PlotPanel(parent=self)
-        self.plot.SetMinSize((400,300))
-        self.plot.SetSize(self.plot.GetMinSize())
-        self.sizer.AddF(item=self.plot, 
-                flags=wx.SizerFlags(1).Expand().Center().Border())
-
-        self.plotframes = []
-
-        self.data = self.getData(file=self.filename)
-
-        self.ctrls = [ 
-            VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
-                options=self.getXDataNames(), defchoice=-1),
-            VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
-                options=self.getYDataNames(), defchoice=-1),
-            VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
-                options=[], defchoicelabel="in")]
-
-        self.plotctrl = self.ctrls[-1] 
-        self.updatePlotCtrl()
-
-        self.plotbtn = createButton(parent=self, label="Plot", 
-            handler=self.onPlot, sizer=self.ctrlsizer)
-        self.oplotbtn = createButton(parent=self, label="Overplot",
-            handler=self.onOverPlot, sizer=self.ctrlsizer)
+        self.data = self.readData(file=self.filename)
+        self.mkCtrls()
+        self.mkPanelPlot()
 
         self.sizer.SetSizeHints(self)
         self.Layout()
@@ -195,3 +170,6 @@ class DataSheet(wx.Panel):
         opts += [ DataSheet.inPanelOpt, DataSheet.inNewFrameOpt ]
 
         self.plotctrl.setOptions(opts, defchoice=-1)
+
+    def readData(self, file):
+        raise NotImplementedError("readData")

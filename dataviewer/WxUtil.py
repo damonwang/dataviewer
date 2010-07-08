@@ -5,7 +5,10 @@ axes = ["X", "Y"]
 
 def twiddleSize(dest):
     '''sends dest a useless wx.SizeEvent, to fix some bugs I don't understand.'''
-    dest.GetEventHandler().ProcessEvent(event=wx.SizeEvent(sz=dest.GetSize()))
+    size = dest.GetSize()
+    anotherSize = (size[0]+1,size[1])
+    dest.GetEventHandler().ProcessEvent(event=wx.SizeEvent(sz=anotherSize))
+    dest.GetEventHandler().ProcessEvent(event=wx.SizeEvent(sz=size))
 
 def createButton(handler, parent, label, sizer, flags=wx.SizerFlags().Border(), **kwargs):
     '''creates a button with parent and label, binds to handler, and adds to

@@ -4,7 +4,8 @@ import os
 
 from WxUtil import *
 from Exceptions import *
-from EpicsSheet import EpicsSheet
+from Epics1DSheet import Epics1DSheet
+from Epics2DSheet import Epics2DSheet
 
 class Frame(wx.Frame):
     '''straight inherited from wx.Frame, but created in case I need to
@@ -122,7 +123,7 @@ class MainFrame(Frame):
         self.tree.Fit()
 
         ds = None
-        for filetype in [EpicsSheet]:
+        for filetype in [Epics1DSheet, Epics2DSheet]:
             try:
                 ds = filetype(parent=self.splitW, filename=path, treeItem=item,
                         writeOut=lambda s: self.statusbar.SetStatusText(s, 0),

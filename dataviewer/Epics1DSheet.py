@@ -1,11 +1,10 @@
 import os
 
-from DataSheet import DataSheet
-#DataSheet = DataSheet.DataSheet
+from Data1DSheet import Data1DSheet
 import escan_data as ED
 from Exceptions import *
 
-class EpicsSheet(DataSheet):
+class Epics1DSheet(Data1DSheet):
 
     def getXData(self, name):
         '''returns a 1D iterable of positioning data for X axis
@@ -33,7 +32,7 @@ class EpicsSheet(DataSheet):
 
         return self.data.get_data(name=name)
 
-    def getData(self, file):
+    def readData(self, file):
 
         if not os.path.isfile(file):
             raise IOError(2, "no such file", file)
@@ -41,7 +40,7 @@ class EpicsSheet(DataSheet):
         rv = ED.escan_data(file=file)
         # escan_data returns successfully regardless of whether it actually
         # opens the file or not, so we have to guess based on what comes back
-        if rv.det_names != []:
+        if rv.det_names != [] and rv.dimension == 1:
             return rv
         else: raise FileTypeError(file)
 

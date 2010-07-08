@@ -69,7 +69,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
 
         self.conf = ImageConfig()
         self.cursor_mode='cursor'
-        self.win_config = None
+        self.win_config = ImageGUIConfig(conf=self.conf)
 
         self._yfmt = '%.4f'
         self._xfmt = '%.4f'
@@ -103,7 +103,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
         scale =  1.0*max(data.ravel())
         d = data / scale
         cnf = self.conf
-        c = self.axes.imshow(d,cmap=cnf.cmap, interpolation=cnf.interp)
+        c = self.axes.imshow(d,cmap=self.win_config.cmap, interpolation=self.win_config.interp)
 
 
         # c = self.axes.pcolor(d,cmap=colormap.jet) # , interpolation='nearest')
@@ -438,7 +438,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
         # note that the matplotlib event location have to be converted
         # back to the wxWindows event location...
         # this undoes what happens in FigureCanvasWx.wrapper(event)
-        location = wx.Point(event.x, self.fig.bbox.height()-event.y)
+        location = wx.Point(event.x, self.fig.bbox.height-event.y)
         self.PopupMenu(self.popup_menu,location)
 
     def onRightUp(self,event=None):
@@ -585,7 +585,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
         ymax   = max(y, self.conf.zoom_y)
         width  = abs(x -self.conf.zoom_x)
         height = abs(y -self.conf.zoom_y)
-        y0     = self.canvas.figure.bbox.height() - ymax
+        y0     = self.canvas.figure.bbox.height - ymax
 
         zdc = wx.ClientDC(self.canvas)
         # print 'on Mouse Motion ', zdc, x, y
