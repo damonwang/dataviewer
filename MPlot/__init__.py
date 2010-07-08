@@ -66,7 +66,6 @@ import time
 import types
 import wx
 import matplotlib
-#import matplotlib.numerix as numpy
 import numpy
 matplotlib.use('WXAgg')
 
