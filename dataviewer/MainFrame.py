@@ -5,9 +5,7 @@ import os
 from WxUtil import *
 from Exceptions import *
 
-#from EpicsSheet import EpicsSheet
-import EpicsSheet
-EpicsSheet = EpicsSheet.EpicsSheet
+from EpicsSheet import EpicsSheet
 
 class Frame(wx.Frame):
     '''straight inherited from wx.Frame, but created in case I need to
