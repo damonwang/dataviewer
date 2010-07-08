@@ -98,7 +98,6 @@ class MainFrame(Frame):
         '''sets pane as the right-hand window of the SplitterWindow. Does not
         destroy the current right-hand pane, just removes it.'''
 
-        print("entered showRightPane, showing %s" % pane)
         old, self.visibleDS = self.splitW.GetWindow2(), pane
         self.splitW.ReplaceWindow(winNew=self.visibleDS, winOld=old)
         old.Hide()
@@ -107,8 +106,6 @@ class MainFrame(Frame):
 
     def onTreeItemActivated(self, event):
         '''when user clicks on a DataSheet's item in the tree, show that DataSheet.'''
-
-        print("entered onTreeItemActivated, item is %s" % event.GetItem())
 
         self.showRightPane(self.tree.GetItemPyData(event.GetItem()))
 

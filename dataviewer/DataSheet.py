@@ -137,6 +137,8 @@ class DataSheet(wx.Panel):
             self.sizer.SetSizeHints(self)
             self.Layout()
             twiddleSize(self.Parent)
+        elif self.isNewFrame(ctrls["Plot"]) or self.isExistingFrame(ctrls["Plot"]):
+            dest.Raise()
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
