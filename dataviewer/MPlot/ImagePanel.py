@@ -424,12 +424,12 @@ Matt Newville <newville@cars.uchicago.edu>"""
                 self.write_message(txt)
 
                 self.old_zoomdc = (None,(0,0),(0,0))
-                self.cursor_mode = 'cursor'
                 print 'Now going to Redraw '
                 self.redraw()
 
             except:
                 self.write_message("Cannot Zoom")
+        self.cursor_mode = 'cursor'
 
     def onRightDown(self,event=None):
         """ right button down: show pop-up"""
@@ -577,7 +577,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
             x, y  = event.x, event.y
         except:
             self.cursor_mode == 'cursor'
-            retrun
+            return
         self.__drawZoombox(self.old_zoomdc)
         self.old_zoomdc = (None, (0,0),(0,0))            
 
