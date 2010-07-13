@@ -20,13 +20,13 @@ class Data2DSheet(DataSheet):
         self.ctrlsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.PrependF(item=self.ctrlsizer, flags=wx.SizerFlags())
 
-        self.ctrls = [ 
-            VarSelPanel(parent=self, var="Data", sizer=self.ctrlsizer,
+        self.ctrls = dict( 
+            Data=VarSelPanel(parent=self, var="Data", sizer=self.ctrlsizer,
                 options=self.getDataNames(), defchoice=-1),
-            VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
-                options=[], defchoicelabel="in")]
+            Plot=VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
+                options=[], defchoicelabel="in"))
 
-        self.plotctrl = self.ctrls[-1] 
+        self.plotctrl = self.ctrls["Plot"] 
         self.updatePlotCtrl()
 
         self.plotbtn = createButton(parent=self, label="Plot", 
@@ -44,54 +44,27 @@ class Data2DSheet(DataSheet):
         self.plot.SetSize(self.plot.GetMinSize())
         self.sizer.AddF(item=self.plot, 
                 flags=wx.SizerFlags(1).Expand().Center().Border())
+    
+    def doPlot(self, dataSrc, dest):
+        '''plots the named data to destination
 
-    def onPlot(self, event):
-        '''reads ctrls and plots'''
+        Args:
+            dataSrc: name suitable for putting into getData
+            dest: something with a plot or display method
+        '''
 
-        ctrls = self._getCtrls()
-        try:
-            data = self.getData(name=ctrls["Data"]) 
-            destChoice = ctrls["Plot"]
-        except KeyError, e:
-            wx.MessageBox("Please choose your %s axis" % e.args[0])
-            return None
-
-        if self.isPanel(destChoice):
-            print("plotting to panel")
-            dest = self.plot
-        elif self.isNewFrame(destChoice):
-            dest = MPlot.ImageFrame(parent=self, name="%s" % ctrls["Data"])
-            self.plotframes.append(dest)
-            dest.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
-            dest.Show()
-            self.updatePlotCtrl()
-        elif self.isExistingFrame(destChoice):
-            try:
-                dest = [ p for p in self.plotframes 
-                        if "Plot %s" % p.GetName() == destChoice ][0]
-            except IndexError:
-                wx.MessageBox("could not find existing plot '%s'" % destChoice)
-                return
-        else: 
-            wx.MessageBox("cannot plot to '%s'---no such destination" % destChoice)
-            return
-
-        self.writeOut("Plotting %s" % ctrls["Data"])
-
+        self.writeOut("Plotting %s" % dataSrc)
+        data = self.getData(name=dataSrc)
         dest.display(data)
-        if self.isExistingFrame(destChoice):
-            dest.SetName("%s" % ctrls["Data"])
-            self.updatePlotCtrl()
 
-        if self.isPanel(ctrls["Plot"]):
-            print("twiddling")
-            self.sizer.Fit(self)
-            self.sizer.SetSizeHints(self)
-            self.Parent.Parent.Layout()
-            self.Refresh()
-            twiddleSize(self.Parent.Parent)
-        elif self.isNewFrame(ctrls["Plot"]) or self.isExistingFrame(ctrls["Plot"]):
-            dest.Raise()
+    def getDataChoice(self):
+        '''returns something that can be passed as dataSrc argument to doPlot'''
+
+        return self.getCtrls("Data")
+
+    def getPlotName(self):
+
+        return self.getCtrls("Data")
 
     def getDataNames(self):
         raise NotImplementedError("getDataNames")

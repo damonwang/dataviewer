@@ -6,12 +6,48 @@ from DataSheet import DataSheet
 
 class Data1DSheet(DataSheet):
 
+    def onOverPlot(self, event):
+        '''adds a trace to the existing plot'''
+
+        self.onPlot(event, overplot=True)
+
+    def doPlot(self, dataSrc, dest, **kwargs):
+        '''plots the named data to destination
+
+        Args:
+            dataSrc: dict { var : name }, name suitable for passing to getData
+            dest: something with a plot method
+        '''
+
+        X = self.getXData(name=dataSrc["X"])
+        Y = self.getYData(name=dataSrc["Y"])
+        name = self.getPlotName(x=dataSrc["X"], y=dataSrc["Y"])
+
+        if kwargs.get("overplot", False):
+            self.writeOut("Overplotting %s" % name)
+            try:
+                dest.oplot(X, Y)
+            except AttributeError, e:
+                if e.message == "'PlotPanel' object has no attribute 'data_range'":
+                    wx.MessageBox("cannot overplot before plotting. Will plot instead.")
+                    self.doPlot(dataSrc, dest, overplot=False)
+                else:
+                    raise e
+        else:
+            self.writeOut("Plotting %s" % name)
+            dest.plot(X, Y)
+
+    def getDataChoice(self):
+        '''returns something that can be passed as dataSrc argument to doPlot'''
+
+        return self.getCtrls(["X", "Y"])
+
     def mkCtrls(self):
         '''creates the controls.
 
         put them into your own sizer and put that one object into self.sizer
 
-        put a list of controls into self.ctrls
+        put a dict { var : ctrl } of controls into self.ctrls
 
         put the control which picks the plotting destination into self.plotctrl
         
@@ -20,15 +56,15 @@ class Data1DSheet(DataSheet):
         self.ctrlsizer = wx.BoxSizer(wx.HORIZONTAL)
         self.sizer.PrependF(item=self.ctrlsizer, flags=wx.SizerFlags())
 
-        self.ctrls = [ 
-            VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
+        self.ctrls = dict( 
+            X=VarSelPanel(parent=self, var="X", sizer=self.ctrlsizer,
                 options=self.getXDataNames(), defchoice=-1),
-            VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
+            Y=VarSelPanel(parent=self, var="Y", sizer=self.ctrlsizer,
                 options=self.getYDataNames(), defchoice=-1),
-            VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
-                options=[], defchoicelabel="in")]
+            Plot=VarSelPanel(parent=self, var="Plot", sizer=self.ctrlsizer,
+                options=[], defchoicelabel="in"))
 
-        self.plotctrl = self.ctrls[-1] 
+        self.plotctrl = self.ctrls["Plot"] 
         self.updatePlotCtrl()
 
         self.plotbtn = createButton(parent=self, label="Plot", 
@@ -49,9 +85,28 @@ class Data1DSheet(DataSheet):
         self.sizer.AddF(item=self.plot, 
                 flags=wx.SizerFlags(1).Expand().Center().Border())
 
+    def getPlotName(self, x=None, y=None):
+        '''returns a string following this plot's naming convention.
+
+        Args:
+            (optional) x, y: given the axes, formats them
+            If none given, queries the controls
+            Note that if just one axis is passed, it is ignored and the
+            controls are queried anyway
+
+        Returns:
+            "%{x}s v. %{y}s"
+        '''
+            
+        if x is None or y is None:
+            srcs = self.getDataChoice()
+            x, y = srcs["X"], srcs["Y"]
+        return "%s v. %s" % (x, y)
+
+
     def getXData(self, name):
         raise NotImplementedError("getXData")
-    def getXDatanames(self):
+    def getXDataNames(self):
         raise NotImplementedError("getXDataNames")
     def getYData(self, name):
         raise NotImplementedError("getYData")

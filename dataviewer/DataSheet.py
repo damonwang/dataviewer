@@ -62,74 +62,95 @@ class DataSheet(wx.Panel):
         '''just pops up a MesssageBox announcing the event'''
         pass
 
-    def _getCtrls(self):
+    def getCtrls(self, wanted=None):
         '''collects the values of all controls
+        
+        Args:
+            wanted: a ctrl.var or a list of them
 
-        Returns: a dictionary of values indexed by control name'''
+        Returns: 
+            a dictionary of values indexed by ctrl.var if wanted is a list
+            the single value if wanted is a single string (e.g., "Plot")
 
-        def iter():
-            for ctrl in self.ctrls:
-                try:
-                    yield (ctrl.var, ctrl.selection)
-                except AttributeError:
-                    pass
+        Throws:
+            KeyError: if no such ctrl exists
+            AttributeError: if ctrl exists but is not set'''
 
-        return dict([ i for i in iter() ])
+        if wanted is None:
+            wanted = self.ctrls.keys()
 
-    def onOverPlot(self, event):
-        '''adds a trace to the existing plot'''
+        # Cannot try to iterate and catch the error. Strings are iterable.
+        if isinstance(wanted, list):
+            return dict([ (key, self.ctrls[key].selection) for key in wanted ])
+        else:
+            return self.ctrls[wanted].selection
 
-        self.onPlot(event, overplot=True)
+    def mkNewFrame(self, name="New Frame"):
+        rv = MPlot.ImageFrame(parent=self, name=name)
+        self.plotframes.append(rv)
+        rv.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
+        rv.Show()
+        self.updatePlotCtrl()
+        return rv
 
-    def onPlot(self, event, overplot=False):
-        '''Reads ctrls and plots'''
+    def getPlotDest(self):
+        '''returns the object on which to call plot/oplot/etc.
+        
+        Throws:
+            AttributeError: if no plotting destination is chosen yet
+            IndexError: if chosen destination does not exist'''
 
-        ctrls = self._getCtrls()
-        try:
-            data = { "X" : self.getXData(name=ctrls["X"]), 
-                    "Y" : self.getYData(name=ctrls["Y"]) }
-            destChoice = ctrls["Plot"]
-        except KeyError, e:
-            wx.MessageBox("Please choose your %s axis" % e.args[0])
-            return None
+        destChoice = self.getCtrls("Plot")
+        print("destChoice = %s" % destChoice)
 
         if self.isPanel(destChoice):
             dest = self.plot
         elif self.isNewFrame(destChoice):
-            dest = MPlot.PlotFrame(parent=self, 
-                    name="%s v. %s" % (ctrls["Y"], ctrls["X"]))
-            self.plotframes.append(dest)
-            dest.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
-            dest.Show()
-            self.updatePlotCtrl()
+            dest = self.mkNewFrame(name=self.getPlotName())
         elif self.isExistingFrame(destChoice):
-            try:
-                dest = [ p for p in self.plotframes 
-                        if "Plot %s" % p.GetName() == destChoice ][0]
-            except IndexError:
-                wx.MessageBox("could not find existing plot '%s'" % destChoice)
-                return
-        else: 
-            wx.MessageBox("cannot plot to '%s'---no such destination" % destChoice)
+            dest = [ p for p in self.plotframes 
+                    if "Plot %s" % p.GetName() == destChoice ][0]
+        else:
+            raise IndexError(destChoice)
+
+        return dest
+
+    def onPlot(self, event, **kwargs):
+        '''reads ctrls and plots
+        
+        Args:
+            kwargs passed in get passed to doPlot. Use a closure to set these.'''
+
+        try: # what data should we plot?
+            dataSrc = self.getDataChoice()
+        except KeyError, e:
+            wx.MessageBox("Please choose your %s" % e.message)
+            return
+        
+        try: # where should we plot it?
+            dest = self.getPlotDest()
+        except (IndexError, AttributeError), e:
+            wx.MessageBox('''Please choose a valid plotting destination
+                    given: %s''' % e.message)
             return
 
-        self.writeOut("%s %s vs %s" % (("Plotting", "Overplotting")[overplot], 
-            ctrls["Y"], ctrls["X"]))
+        self.doPlot(dataSrc, dest, **kwargs)
 
-        if overplot and not self.isNewFrame(ctrls["Plot"]):
-            dest.oplot(data["X"], data["Y"])
-        else: 
-            dest.plot(data["X"], data["Y"])
-            if self.isExistingFrame(destChoice):
-                dest.SetName("%s v. %s" % (ctrls["Y"], ctrls["X"]))
-                self.updatePlotCtrl()
-
-        if self.isPanel(ctrls["Plot"]):
+        # TODO: cruft to refactor
+        destChoice = self.getCtrls("Plot")
+        if self.isExistingFrame(destChoice):
+            dest.SetName("%s" % dataSrc)
+            self.updatePlotCtrl()
+        elif self.isPanel(destChoice):
+            print("twiddling")
+            self.GetParent().Layout()
+            self.sizer.Fit(self)
             self.sizer.SetSizeHints(self)
-            self.Layout()
-            twiddleSize(self.Parent)
-        elif self.isNewFrame(ctrls["Plot"]) or self.isExistingFrame(ctrls["Plot"]):
-            dest.Raise()
+            self.Parent.Parent.Layout()
+            self.Refresh()
+            twiddleSize(self.Parent.Parent)
+        else: dest.Raise()
+
 
     def _def_writeOut(self, s):
         '''default output goes to sys.stdout'''
@@ -173,3 +194,10 @@ class DataSheet(wx.Panel):
 
     def readData(self, file):
         raise NotImplementedError("readData")
+    def getDataChoice(self):
+        raise NotImplementedError("getDataChoice")
+    def doPlot(self, dataSrc, dest):
+        raise NotImplementedError("plot")
+    def getPlotName(self):
+        raise NotImplementedError("getPlotName")
+
