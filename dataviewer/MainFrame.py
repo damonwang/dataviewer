@@ -42,7 +42,7 @@ class MainFrame(Frame):
         self.panel.SetSizer(self.sizer)
 
         self.splitW = wx.SplitterWindow(parent=self.panel,
-                style=wx.SP_BORDER)
+                style=wx.SP_3D)
         self.sizer.AddF(item=self.splitW, flags=wx.SizerFlags(1).Expand())
 
         self.statusbar = self.CreateStatusBar()
@@ -52,7 +52,7 @@ class MainFrame(Frame):
 
 
         self.tree = wx.TreeCtrl(parent=self.splitW, 
-                style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT)
+                style=wx.TR_DEFAULT_STYLE | wx.TR_HIDE_ROOT | wx.BORDER_NONE)
         self.tree.AddRoot(text="root")
         self.tree.Bind(event=wx.EVT_TREE_SEL_CHANGED, handler=self.onTreeItemActivated)
 
