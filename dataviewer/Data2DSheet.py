@@ -44,6 +44,15 @@ class Data2DSheet(DataSheet):
         self.plot.SetSize(self.plot.GetMinSize())
         self.sizer.AddF(item=self.plot, 
                 flags=wx.SizerFlags(1).Expand().Center().Border())
+
+    def mkNewFrame(self, name="New Frame"):
+        rv = MPlot.ImageFrame(parent=self, name=name)
+        self.plotframes.append(rv)
+        rv.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
+        rv.Show()
+        self.updatePlotCtrl()
+        return rv
+
     
     def doPlot(self, dataSrc, dest):
         '''plots the named data to destination
@@ -54,17 +63,30 @@ class Data2DSheet(DataSheet):
         '''
 
         self.writeOut("Plotting %s" % dataSrc)
-        data = self.getData(name=dataSrc)
+        data = self.getData(name=self.getPlotName())
         dest.display(data)
+        dest.redraw()
 
     def getDataChoice(self):
         '''returns something that can be passed as dataSrc argument to doPlot'''
 
         return self.getCtrls("Data")
 
-    def getPlotName(self):
+    def getPlotName(self, data=None):
+        '''returns a string following this plot's naming convention.
 
-        return "Plot %s" % self.getCtrls("Data")
+        Args:
+            (optional) data: given the name, formats it
+            If none given, queries the controls
+
+        Returns:
+            "Plot %{data}s"
+        '''
+
+        if data is None:
+            return "Plot %s" % self.getCtrls("Data")
+        else:
+            return "Plot %s" % data
 
     def getDataNames(self):
         raise NotImplementedError("getDataNames")

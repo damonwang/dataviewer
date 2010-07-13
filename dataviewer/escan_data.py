@@ -102,9 +102,9 @@ class escan_data:
             dat  = dat/norm            
         return dat
     
-    def match_detector_name(self, str, strict=False):
+    def match_detector_name(self, s, strict=False):
         """return index in self.det_names most closely matching supplied string"""
-        s  = str.lower()
+        s  = s.lower()
         sw = s.split()
         b  = [i[0].lower() for i in self.det_names]
         # look for exact match

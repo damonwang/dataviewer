@@ -85,6 +85,14 @@ class Data1DSheet(DataSheet):
         self.sizer.AddF(item=self.plot, 
                 flags=wx.SizerFlags(1).Expand().Center().Border())
 
+    def mkNewFrame(self, name="New Frame"):
+        rv = MPlot.PlotFrame(parent=self, name=name)
+        self.plotframes.append(rv)
+        rv.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
+        rv.Show()
+        self.updatePlotCtrl()
+        return rv
+
     def getPlotName(self, x=None, y=None):
         '''returns a string following this plot's naming convention.
 
@@ -95,7 +103,7 @@ class Data1DSheet(DataSheet):
             controls are queried anyway
 
         Returns:
-            "%{x}s v. %{y}s"
+            "Plot %{x}s v. %{y}s"
         '''
             
         if x is None or y is None:

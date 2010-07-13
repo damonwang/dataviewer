@@ -85,13 +85,6 @@ class DataSheet(wx.Panel):
         else:
             return dict([ (key, self.ctrls[key].selection) for key in args ])
 
-    def mkNewFrame(self, name="New Frame"):
-        rv = MPlot.ImageFrame(parent=self, name=name)
-        self.plotframes.append(rv)
-        rv.Bind(event=wx.EVT_CLOSE, handler=self.onPlotFrameClose)
-        rv.Show()
-        self.updatePlotCtrl()
-        return rv
 
     def getPlotDest(self):
         '''returns the object on which to call plot/oplot/etc.
@@ -138,18 +131,13 @@ class DataSheet(wx.Panel):
 
         # TODO: cruft to refactor
         destChoice = self.getCtrls("Plot")
-        if self.isExistingFrame(destChoice):
-            dest.SetName("%s" % dataSrc)
-            self.updatePlotCtrl()
-        elif self.isPanel(destChoice):
+        if self.isPanel(destChoice):
             print("twiddling")
             self.GetParent().Layout()
-            self.sizer.Fit(self)
-            self.sizer.SetSizeHints(self)
-            self.Parent.Parent.Layout()
-            self.Refresh()
-            twiddleSize(self.Parent.Parent)
-        else: dest.Raise()
+        else: # a plotframe
+            dest.SetName("%s" % self.getPlotName())
+            self.updatePlotCtrl()
+            dest.Raise()
 
 
     def _def_writeOut(self, s):
@@ -200,4 +188,6 @@ class DataSheet(wx.Panel):
         raise NotImplementedError("plot")
     def getPlotName(self):
         raise NotImplementedError("getPlotName")
+    def mkNewFrame(self, name):
+        raise NotImplementedError("mkNewFrame")
 
