@@ -370,7 +370,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
             fmt = "X,Y= %s, %s" % (self._xfmt, self._yfmt)
             self.write_message(fmt % (event.xdata,event.ydata), panel=1)
         else:
-            self.conf.zoom_init = self.axes.transData.inverse_xy_tup((event.x, event.y))
+            self.conf.zoom_init = self.axes.transData.inverted().transform((event.x, event.y))
 
         self.cursor_mode = 'zoom'
         self.__drawZoombox(self.old_zoomdc)
@@ -389,7 +389,7 @@ Matt Newville <newville@cars.uchicago.edu>"""
             if (event.inaxes != None):
                 _end = (event.xdata,event.ydata)
             else: # allows zooming in to go slightly out of range....
-                _end = self.axes.transData.inverse_xy_tup((event.x, event.y))
+                _end = self.axes.transData.inverted().transform((event.x, event.y))
             try:
                 _ini = self.conf.zoom_init
                 _lim = (min(_ini[0],_end[0]),max(_ini[0],_end[0]),
