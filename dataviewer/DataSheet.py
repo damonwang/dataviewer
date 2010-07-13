@@ -62,7 +62,7 @@ class DataSheet(wx.Panel):
         '''just pops up a MesssageBox announcing the event'''
         pass
 
-    def getCtrls(self, wanted=None):
+    def getCtrls(self, *args):
         '''collects the values of all controls
         
         Args:
@@ -76,14 +76,14 @@ class DataSheet(wx.Panel):
             KeyError: if no such ctrl exists
             AttributeError: if ctrl exists but is not set'''
 
-        if wanted is None:
-            wanted = self.ctrls.keys()
+        if args == []:
+            args = self.ctrls.keys()
 
         # Cannot try to iterate and catch the error. Strings are iterable.
-        if isinstance(wanted, list):
-            return dict([ (key, self.ctrls[key].selection) for key in wanted ])
+        if len(args) == 1:
+            return self.ctrls[args[0]].selection
         else:
-            return self.ctrls[wanted].selection
+            return dict([ (key, self.ctrls[key].selection) for key in args ])
 
     def mkNewFrame(self, name="New Frame"):
         rv = MPlot.ImageFrame(parent=self, name=name)
@@ -108,8 +108,8 @@ class DataSheet(wx.Panel):
         elif self.isNewFrame(destChoice):
             dest = self.mkNewFrame(name=self.getPlotName())
         elif self.isExistingFrame(destChoice):
-            dest = [ p for p in self.plotframes 
-                    if "Plot %s" % p.GetName() == destChoice ][0]
+            print("self.plotframes = %s" % [ p.GetName() for p in self.plotframes])
+            dest = [p for p in self.plotframes if p.GetName() == destChoice][0]
         else:
             raise IndexError(destChoice)
 
@@ -187,7 +187,7 @@ class DataSheet(wx.Panel):
     def updatePlotCtrl(self):
         '''discovers possible plotting destinations and updates the control.'''
 
-        opts = ["Plot %s" % p.GetName() for p in self.plotframes]
+        opts = [ p.GetName() for p in self.plotframes]
         opts += [ DataSheet.inPanelOpt, DataSheet.inNewFrameOpt ]
 
         self.plotctrl.setOptions(opts, defchoice=-1)

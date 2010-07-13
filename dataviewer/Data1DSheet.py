@@ -40,7 +40,7 @@ class Data1DSheet(DataSheet):
     def getDataChoice(self):
         '''returns something that can be passed as dataSrc argument to doPlot'''
 
-        return self.getCtrls(["X", "Y"])
+        return self.getCtrls("X", "Y")
 
     def mkCtrls(self):
         '''creates the controls.
@@ -101,7 +101,7 @@ class Data1DSheet(DataSheet):
         if x is None or y is None:
             srcs = self.getDataChoice()
             x, y = srcs["X"], srcs["Y"]
-        return "%s v. %s" % (x, y)
+        return "Plot %s v. %s" % (x, y)
 
 
     def getXData(self, name):

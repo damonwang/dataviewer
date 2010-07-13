@@ -64,7 +64,7 @@ class Data2DSheet(DataSheet):
 
     def getPlotName(self):
 
-        return self.getCtrls("Data")
+        return "Plot %s" % self.getCtrls("Data")
 
     def getDataNames(self):
         raise NotImplementedError("getDataNames")
