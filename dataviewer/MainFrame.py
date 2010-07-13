@@ -108,6 +108,8 @@ class MainFrame(Frame):
         '''when user clicks on a DataSheet's item in the tree, show that DataSheet.'''
 
         self.showRightPane(self.tree.GetItemPyData(event.GetItem()))
+        self.sizer.SetSizeHints(self)
+        self.Layout()
 
     def openDataSheet(self, path):
         '''identifies the filetype, creates the DataSheet, adds it to the tree, and shows it.'''
