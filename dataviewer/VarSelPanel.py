@@ -24,7 +24,7 @@ class VarSelPanel(wx.Panel):
 
         self.var = var
 
-        print(options, file=sys.stderr)
+        # print(options, file=sys.stderr)
 
         dk = dict(sizerFlags=wx.SizerFlags().Border(), label="%s =" % var)
         dk.update(**kwargs)

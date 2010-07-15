@@ -1,4 +1,5 @@
 import os
+import numpy
 
 from Data1DSheet import Data1DSheet
 import escan_data as ED
@@ -12,9 +13,10 @@ class Epics1DSheet(Data1DSheet):
         Args:
             name: a name from self.data.pos_names'''
 
-        return [ self.data.pos[i] 
+        data = [ self.data.pos[i] 
                 for i in range(len(self.data.pos)) 
                 if self.data.pos_names[i][0] == name][0]
+        return data
 
     def getXDataNames(self):
 
@@ -22,7 +24,7 @@ class Epics1DSheet(Data1DSheet):
 
     def getYDataNames(self):
 
-        return self.data.sums_names
+        return sum([ [n, "log %s" % n] for n in self.data.sums_names], [])
 
     def getYData(self, name):
         '''returns a 1D iterable of intensity(?) data for Y axis
@@ -30,7 +32,11 @@ class Epics1DSheet(Data1DSheet):
         Args:
             name: a name from self.data.sums_names'''
 
-        return self.data.get_data(name=name)
+        if "log" in name:
+            data = self.data.get_data(name=name.replace("log ", ""))
+            data = numpy.log(data)
+        else: data = self.data.get_data(name=name)
+        return data
 
     def readData(self, file):
 

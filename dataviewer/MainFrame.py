@@ -132,7 +132,7 @@ class MainFrame(Frame):
                         writeErr=lambda s: self.statusbar.SetStatusText(s, 0))
                 break;
             except FileTypeError:
-                continue
+                pass
         if ds is not None:
             self.datasheets.append(ds)
             self.tree.SetItemPyData(item=item, obj=ds)

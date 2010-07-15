@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import wx
 import MPlot
+from Exceptions import *
 from VarSelPanel import VarSelPanel
 #VarSelPanel = VarSelPanel.VarSelPanel
 
@@ -51,7 +52,11 @@ class DataSheet(wx.Panel):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(self.sizer)
 
-        self.data = self.readData(file=self.filename)
+        try:
+            self.data = self.readData(file=self.filename)
+        except FileTypeError, e:
+            self.Destroy()
+            raise e
         self.mkCtrls()
         self.mkPanelPlot()
 

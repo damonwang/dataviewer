@@ -77,7 +77,7 @@ def createMenu(menu, container, setInto=None):
 
     return rv
 
-def _reportPedigree(self):
+def reportPedigree(self):
     '''returns tree-like output describing parent-child relationships below the given window.
     
     Args: 
@@ -87,8 +87,8 @@ def _reportPedigree(self):
         string with tree-like pedigree'''
 
 
-    return [str(self)] + sum( 
-            [ map(lambda s: "  " + s, _reportPedigree(child))
+    return ["%s%s" % (("(hidden) ", "")[self.IsShown()], self)] + sum( 
+            [ map(lambda s: "  " + s, reportPedigree(child))
                     for child in self.Children if "Children" in dir(child)
             ], [])
         
